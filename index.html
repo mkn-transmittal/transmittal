@@ -50,11 +50,13 @@
       }
       .menu-btn { font-size: 24px; cursor: pointer; background: none; border: none; color: #333; padding: 0; display: flex; align-items: center;}
 
+      /* --- TOAST NOTIFICATIONS CSS --- */
       #toast {
         visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
         text-align: center; border-radius: 8px; padding: 16px; position: fixed;
-        z-index: 5000; left: 50%; bottom: 20px; transform: translateX(-50%);
-        font-size: 15px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        /* 🚨 FIX: Z-Index set to 9999 so it displays perfectly ON TOP of the camera! */
+        z-index: 9999; left: 50%; bottom: 20px; transform: translateX(-50%);
+        font-size: 15px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         opacity: 0; transition: opacity 0.3s, bottom 0.3s;
       }
       #toast.show { visibility: visible; bottom: 40px; opacity: 1; }
@@ -75,7 +77,6 @@
         border-radius: 4px; font-size: 16px; box-sizing: border-box;
       }
       
-      /* NEW: Layout for inputs with Camera Buttons */
       .input-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 20px 5%; width: 90%; }
       .input-row input { margin: 0; width: 100%; }
       .input-wrapper { position: relative; flex: 1; }
@@ -249,13 +250,13 @@
         </div>
         
         <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 140px;">
+            <div style="display: flex; flex-direction: column; text-align: left; flex: 1;">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666; font-weight:bold;">1. Select Request ID</label>
                 <select id="receive-request-dropdown" onchange="loadReceiveDashboardData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;">
                     <option value="">Loading...</option>
                 </select>
             </div>
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 2; min-width: 200px;">
+            <div style="display: flex; flex-direction: column; text-align: left; flex: 2;">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #2196F3; font-weight:bold;">2. Scan Box # Barcode to Receive</label>
                 <div style="display: flex; gap: 8px; width: 100%;">
                     <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" inputmode="none" autocomplete="off">
@@ -388,7 +389,7 @@
         </div>
     </div>
 
-    <div class="modal-overlay" id="camera-modal" style="z-index: 6000;">
+    <div class="modal-overlay" id="camera-modal" style="z-index: 7000;">
         <div class="modal-card" style="padding: 15px; width: 95%; max-width: 400px;">
             <h3 style="margin-top: 0; color: #333;">📷 Scan Barcode</h3>
             <div id="reader" style="width: 100%; overflow: hidden; border-radius: 8px;"></div>
@@ -445,9 +446,11 @@
       let authorizedReprintStaff = ""; 
       let currentDashboardLogs = []; 
 
-      // --- MOBILE CAMERA SCANNER LOGIC ---
+      // --- NEW: MOBILE CAMERA CONTINUOUS LOGIC ---
       let html5QrCode;
       let currentTargetInput = "";
+      let lastScannedText = "";
+      let lastScanTime = 0;
 
       function openCamera(inputId) {
           currentTargetInput = inputId;
@@ -458,14 +461,24 @@
           }
           
           html5QrCode.start(
-              { facingMode: "environment" }, // Forces back camera on phones
+              { facingMode: "environment" }, 
               { fps: 10, qrbox: { width: 250, height: 250 } },
               (decodedText) => {
-                  // Success Callback
-                  closeCamera();
+                  
+                  // THROTTLE: Ignores the exact same barcode if scanned within 2 seconds
+                  if (decodedText === lastScannedText && (Date.now() - lastScanTime < 2000)) return;
+                  lastScannedText = decodedText;
+                  lastScanTime = Date.now();
+
+                  // Process the scan
                   processCameraScan(decodedText);
+                  
+                  // CONTINUOUS MODE: If they are receiving boxes, do NOT close the camera!
+                  if (currentTargetInput !== 'receive-box-scan') {
+                      closeCamera();
+                  }
               },
-              (errorMessage) => { /* Ignore background scan frame errors */ }
+              (errorMessage) => { }
           ).catch((err) => {
               showToast("Camera access denied or unavailable.", "error");
               closeCamera();
@@ -484,7 +497,6 @@
           if (!input) return;
           input.value = text;
           
-          // Mocks an instant 'Enter' keypress to process the data without typing restrictions
           const mockEvent = { key: 'Enter', preventDefault: () => {} };
           
           if (currentTargetInput === 'sku-search') handleKeyNavigation(mockEvent, 'sku-suggestions');
@@ -501,7 +513,7 @@
           document.getElementById('reprint-auth-modal').style.display = 'none';
           document.getElementById('reprint-modal').style.display = 'none';
           document.getElementById('error-modal').style.display = 'none';
-          closeCamera(); // Ensure camera turns off if closed aggressively
+          closeCamera(); 
       }
 
       function hideAllSections() {
@@ -748,7 +760,7 @@
 
       function enforceScannerOnly(e, inputId) {
           if (e.key === 'Enter') { clearTimeout(scannerTimer); const boxId = inputId === 'counter-1' ? 'c1-suggestions' : 'c2-suggestions'; handleKeyNavigation(e, boxId); return; }
-          clearTimeout(scannerTimer); scannerTimer = setTimeout(() => { document.getElementById(inputId).value = ""; playErrorSound(); }, 60); 
+          clearTimeout(scannerTimer); scannerTimer = setTimeout(() => { document.getElementById(inputId).value = ""; playErrorSound(); }, 200); 
       }
 
       function selectStaff(staffName, inputId) {
@@ -1021,7 +1033,7 @@
               return;
           }
           clearTimeout(opsScannerTimer);
-          opsScannerTimer = setTimeout(() => { document.getElementById('reprint-auth-input').value = ""; }, 50);
+          opsScannerTimer = setTimeout(() => { document.getElementById('reprint-auth-input').value = ""; }, 200);
       }
 
       function executeReprintLabel() {
@@ -1093,7 +1105,7 @@
               return;
           }
           clearTimeout(opsScannerTimer);
-          opsScannerTimer = setTimeout(() => { document.getElementById('ops-passkey').value = ""; }, 50);
+          opsScannerTimer = setTimeout(() => { document.getElementById('ops-passkey').value = ""; }, 200);
       }
 
       async function switchToReceiveMain() {
@@ -1152,7 +1164,7 @@
               return;
           }
           clearTimeout(receiveScannerTimer);
-          receiveScannerTimer = setTimeout(() => { document.getElementById('receive-box-scan').value = ""; }, 50);
+          receiveScannerTimer = setTimeout(() => { document.getElementById('receive-box-scan').value = ""; }, 200);
       }
 
       // --- ULTRA FAST OPTIMISTIC RECEIVING ENGINE ---
@@ -1163,14 +1175,22 @@
           const reqId = document.getElementById('receive-request-dropdown').value;
           if(!reqId) { playErrorSound(); return showToast("Please select a Request ID first!", "error"); }
 
-          // 1. Check local memory first for instant duplicate blocking (Zero server lag)
+          // 1. Check local memory first for instant duplicate blocking
           const targetLog = currentDashboardLogs.find(l => String(l.boxNum) === String(boxNum));
+          
+          // ALARM TRIGGER: If box is already received!
           if (targetLog && targetLog.receiveBy) {
               playAlarmSound();
-              return triggerErrorModal(`Box #${boxNum} was already received by ${targetLog.receiveBy} on ${targetLog.dateReceived}.`, "receive-box-scan", true);
+              
+              // If they are scanning with the continuous mobile camera, use Toast instead of blocking Modal
+              if (document.getElementById('camera-modal').style.display === 'flex') {
+                  return showToast(`ALREADY RECEIVED: Box #${boxNum}`, "error");
+              } else {
+                  return triggerErrorModal(`Box #${boxNum} was already received by ${targetLog.receiveBy} on ${targetLog.dateReceived}.`, "receive-box-scan", true);
+              }
           }
 
-          // 2. OPTIMISTIC UI UPDATE: Instantly turn row green before server responds!
+          // 2. OPTIMISTIC UI UPDATE: Turn green instantly!
           if (targetLog) {
               targetLog.receiveBy = activeOpsName;
               const statusCell = document.getElementById(`box-status-${boxNum}`);
@@ -1181,16 +1201,21 @@
           playSuccessReceiveSound();
           showToast(`Box #${boxNum} Received!`, "success");
 
-          // Keep focus locked on input for continuous rapid-fire scanning
+          // Snap focus back for the next physical scan
           setTimeout(() => document.getElementById('receive-box-scan').focus(), 10);
 
-          // 3. Background server sync (happens silently without slowing down the operator)
+          // 3. Silent background sync
           try {
               const res = await apiCall('receiveBox', { sheetName: activeSheetName, requestId: reqId, boxNum: boxNum, opsName: activeOpsName });
               if (res.error === "ALREADY_RECEIVED") {
                   playAlarmSound();
-                  loadReceiveDashboardData(); // Re-sync if someone else scanned it simultaneously
-                  triggerErrorModal(`Box #${boxNum} was already received by ${res.receivedBy} on ${res.dateReceived}.`, "receive-box-scan", true);
+                  loadReceiveDashboardData(); // Fix any de-syncs
+                  
+                  if (document.getElementById('camera-modal').style.display === 'flex') {
+                      showToast(`ALREADY RECEIVED: Box #${boxNum}`, "error");
+                  } else {
+                      triggerErrorModal(`Box #${boxNum} was already received by ${res.receivedBy} on ${res.dateReceived}.`, "receive-box-scan", true);
+                  }
               }
           } catch(e) {
               console.error("Background sync failed:", e);
