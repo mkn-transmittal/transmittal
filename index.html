@@ -17,11 +17,10 @@
         overflow-x: hidden;
       }
       
-      /* --- SLEEK DARK SIDEBAR CSS (FIXED SCROLLING & OVERFLOW) --- */
       .sidebar {
         height: 100%; width: 250px; position: fixed; z-index: 3000;
         top: 0; left: -250px; background-color: #111827; overflow-x: hidden;
-        overflow-y: auto; /* FIX: Allows scrolling if items exceed screen height */
+        overflow-y: auto; 
         transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding-top: 60px; 
         box-shadow: 4px 0 15px rgba(0,0,0,0.3);
         display: flex; flex-direction: column; min-height: 100vh;
@@ -49,7 +48,6 @@
       }
       .menu-btn { font-size: 24px; cursor: pointer; background: none; border: none; color: #333; padding: 0; display: flex; align-items: center;}
 
-      /* --- TOAST NOTIFICATIONS CSS --- */
       #toast {
         visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
         text-align: center; border-radius: 8px; padding: 16px; position: fixed;
@@ -62,7 +60,6 @@
       #toast.success { background-color: #4CAF50; }
       #toast.error { background-color: #F44336; }
 
-      /* --- MAIN APP CSS --- */
       .container {
         background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         text-align: center; width: 100%; max-width: 500px; position: relative; z-index: 10;
@@ -407,7 +404,6 @@
       let authorizedReprintStaff = ""; 
       let currentDashboardLogs = []; 
 
-      // --- MASTER MODAL CONTROLLER ---
       function closeAllModals() {
           document.getElementById('success-modal').style.display = 'none';
           document.getElementById('reprint-auth-modal').style.display = 'none';
@@ -966,7 +962,7 @@
       }
 
       // ==========================================
-      // --- RECEIVING MODULE LOGIC ---
+      // --- LIGHTNING-FAST RECEIVING MODULE ---
       // ==========================================
       
       async function switchToReceiveLogin() {
@@ -1042,12 +1038,12 @@
               let rowStyle = log.receiveBy ? "background-color: #f1f8e9;" : ""; 
 
               tbody.innerHTML += `
-                  <tr style="${rowStyle}">
+                  <tr style="${rowStyle}" id="box-row-${log.boxNum}">
                       <td><b>Box #${log.boxNum}</b></td>
                       <td>${log.sku}</td>
                       <td><b>${log.qty}</b></td>
                       <td>${counters}</td>
-                      <td>${receiveStatus}</td>
+                      <td id="box-status-${log.boxNum}">${receiveStatus}</td>
                   </tr>
               `;
           });
@@ -1059,33 +1055,52 @@
               e.preventDefault();
               const val = document.getElementById('receive-box-scan').value.trim();
               document.getElementById('receive-box-scan').value = ""; 
-              if (val) processBoxReceive(val);
+              if (val) processBoxReceiveOptimistic(val);
               return;
           }
           clearTimeout(receiveScannerTimer);
           receiveScannerTimer = setTimeout(() => { document.getElementById('receive-box-scan').value = ""; }, 50);
       }
 
-      async function processBoxReceive(scannedVal) {
+      // --- ULTRA FAST OPTIMISTIC RECEIVING ENGINE ---
+      async function processBoxReceiveOptimistic(scannedVal) {
           let boxNum = scannedVal.replace(/^BOX-/i, "").trim();
           if(!boxNum || isNaN(boxNum)) { playErrorSound(); return showToast("Invalid Box Barcode Scanned", "error"); }
 
           const reqId = document.getElementById('receive-request-dropdown').value;
           if(!reqId) { playErrorSound(); return showToast("Please select a Request ID first!", "error"); }
 
-          showToast("Verifying Box...", "loading");
+          // 1. Check local memory first for instant duplicate blocking (Zero server lag)
+          const targetLog = currentDashboardLogs.find(l => String(l.boxNum) === String(boxNum));
+          if (targetLog && targetLog.receiveBy) {
+              playAlarmSound();
+              return triggerErrorModal(`Box #${boxNum} was already received by ${targetLog.receiveBy} on ${targetLog.dateReceived}.`, "receive-box-scan", true);
+          }
+
+          // 2. OPTIMISTIC UI UPDATE: Instantly turn row green before server responds!
+          if (targetLog) {
+              targetLog.receiveBy = activeOpsName;
+              const statusCell = document.getElementById(`box-status-${boxNum}`);
+              const rowEl = document.getElementById(`box-row-${boxNum}`);
+              if(statusCell) statusCell.innerHTML = `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${activeOpsName}</span>`;
+              if(rowEl) rowEl.style.backgroundColor = "#f1f8e9";
+          }
+          playSuccessReceiveSound();
+          showToast(`Box #${boxNum} Received!`, "success");
+
+          // Keep focus locked on input for continuous rapid-fire scanning
+          setTimeout(() => document.getElementById('receive-box-scan').focus(), 10);
+
+          // 3. Background server sync (happens silently without slowing down the operator)
           try {
               const res = await apiCall('receiveBox', { sheetName: activeSheetName, requestId: reqId, boxNum: boxNum, opsName: activeOpsName });
-              hideToast();
               if (res.error === "ALREADY_RECEIVED") {
+                  playAlarmSound();
+                  loadReceiveDashboardData(); // Re-sync if someone else scanned it simultaneously
                   triggerErrorModal(`Box #${boxNum} was already received by ${res.receivedBy} on ${res.dateReceived}.`, "receive-box-scan", true);
-              } else {
-                  playSuccessReceiveSound();
-                  showToast(`Box #${boxNum} Received!`, "success");
-                  loadReceiveDashboardData(); 
               }
           } catch(e) {
-              hideToast(); playErrorSound(); triggerErrorModal(e.message || "Failed to receive box.", "receive-box-scan");
+              console.error("Background sync failed:", e);
           }
       }
     </script>
