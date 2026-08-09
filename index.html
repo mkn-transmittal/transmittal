@@ -50,11 +50,9 @@
       }
       .menu-btn { font-size: 24px; cursor: pointer; background: none; border: none; color: #333; padding: 0; display: flex; align-items: center;}
 
-      /* --- TOAST NOTIFICATIONS CSS --- */
       #toast {
         visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
         text-align: center; border-radius: 8px; padding: 16px; position: fixed;
-        /* 🚨 FIX: Z-Index set to 9999 so it displays perfectly ON TOP of the camera! */
         z-index: 9999; left: 50%; bottom: 20px; transform: translateX(-50%);
         font-size: 15px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         opacity: 0; transition: opacity 0.3s, bottom 0.3s;
@@ -141,9 +139,7 @@
       .btn-print { background: #4CAF50; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-reentry { background: #ff9800; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-error { background: #F44336; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 15px; }
-      .timer-text { font-size: 14px; color: #777; margin-top: 15px; font-weight: bold;}
-      #error-message { color: red; margin-top: 10px; display: none; font-weight: bold; }
-
+      
       @media print {
         html, body { width: 150mm; height: 100mm; margin: 0 !important; padding: 0 !important; background: white !important; overflow: hidden !important; }
         body * { visibility: hidden !important; } 
@@ -179,7 +175,7 @@
       <p>Enter your department password</p>
       <input type="password" id="admin-password" placeholder="Enter Password" onkeydown="if(event.key === 'Enter') checkPassword()">
       <button onclick="checkPassword()" id="btn-login">Unlock Scanner</button>
-      <div id="error-message">Incorrect password. Please try again.</div>
+      <div id="error-message" style="color: red; margin-top: 10px; display: none; font-weight: bold;">Incorrect password. Please try again.</div>
     </div>
 
     <div class="container" id="purpose-section" style="display: none;">
@@ -250,13 +246,13 @@
         </div>
         
         <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 1;">
+            <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 140px;">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666; font-weight:bold;">1. Select Request ID</label>
                 <select id="receive-request-dropdown" onchange="loadReceiveDashboardData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;">
                     <option value="">Loading...</option>
                 </select>
             </div>
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 2;">
+            <div style="display: flex; flex-direction: column; text-align: left; flex: 2; min-width: 200px;">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #2196F3; font-weight:bold;">2. Scan Box # Barcode to Receive</label>
                 <div style="display: flex; gap: 8px; width: 100%;">
                     <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" inputmode="none" autocomplete="off">
@@ -347,8 +343,7 @@
                 <button class="btn-reentry" id="btn-reentry" onclick="actionReEntry()">Re-Entry</button>
                 <button class="btn-print" id="btn-confirm-print" onclick="actionPrint()">Print</button>
             </div>
-            <div class="timer-text" id="timer-display">Auto-printing in <span id="timer-count">5</span> seconds...</div>
-        </div>
+            </div>
     </div>
 
     <div class="modal-overlay" id="reprint-auth-modal">
@@ -434,8 +429,6 @@
       let masterStaffData = []; 
       let masterOpsData = []; 
       
-      let countdownTimer;
-      let timeLeft = 5;
       let pendingPayload = null;
       let scannerTimer;
       let opsScannerTimer; 
@@ -446,7 +439,7 @@
       let authorizedReprintStaff = ""; 
       let currentDashboardLogs = []; 
 
-      // --- NEW: MOBILE CAMERA CONTINUOUS LOGIC ---
+      // --- MOBILE CAMERA CONTINUOUS LOGIC ---
       let html5QrCode;
       let currentTargetInput = "";
       let lastScannedText = "";
@@ -465,15 +458,12 @@
               { fps: 10, qrbox: { width: 250, height: 250 } },
               (decodedText) => {
                   
-                  // THROTTLE: Ignores the exact same barcode if scanned within 2 seconds
                   if (decodedText === lastScannedText && (Date.now() - lastScanTime < 2000)) return;
                   lastScannedText = decodedText;
                   lastScanTime = Date.now();
 
-                  // Process the scan
                   processCameraScan(decodedText);
                   
-                  // CONTINUOUS MODE: If they are receiving boxes, do NOT close the camera!
                   if (currentTargetInput !== 'receive-box-scan') {
                       closeCamera();
                   }
@@ -678,7 +668,7 @@
       }
 
       function actionReEntry() {
-          clearInterval(countdownTimer); pendingPayload = null; closeAllModals(); setTimeout(() => document.getElementById('sku-search').focus(), 10);
+          pendingPayload = null; closeAllModals(); setTimeout(() => document.getElementById('sku-search').focus(), 10);
       }
 
       // --- SMART AUTHENTICATION (ADMIN) ---
@@ -831,8 +821,6 @@
       }
 
       function triggerPreview() {
-        clearInterval(countdownTimer);
-
         const skuInput = document.getElementById('sku-search').value;
         const qty = document.getElementById('box-qty').value;
         const c1 = document.getElementById('counter-1').value.trim();
@@ -864,24 +852,15 @@
 
         closeAllModals();
         document.getElementById('success-modal').style.display = 'flex';
-        
-        timeLeft = 5;
-        document.getElementById('timer-count').innerText = timeLeft;
-        
-        countdownTimer = setInterval(() => {
-            timeLeft--; document.getElementById('timer-count').innerText = timeLeft;
-            if (timeLeft <= 0) { clearInterval(countdownTimer); actionPrint(); }
-        }, 1000);
       }
 
       async function actionPrint() {
-          clearInterval(countdownTimer);
           const btnPrint = document.getElementById('btn-confirm-print');
           if (btnPrint.disabled) return; 
 
-          const btnReentry = document.getElementById('btn-reentry'); const timerText = document.getElementById('timer-display');
+          const btnReentry = document.getElementById('btn-reentry'); 
           
-          btnPrint.innerText = "Saving & Printing..."; btnPrint.disabled = true; btnReentry.disabled = true; timerText.innerText = "Please wait. Locking in Box Number...";
+          btnPrint.innerText = "Saving & Printing..."; btnPrint.disabled = true; btnReentry.disabled = true; 
 
           try {
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
@@ -905,20 +884,21 @@
                   JsBarcode("#print-box-barcode", "BOX-" + response.boxNumber, { format: "CODE128", width: 1.5, height: 40, displayValue: true, fontSize: 12, margin: 0 }); 
               } catch(e) {}
 
+              // Extremely fast 0.1-second rendering delay before opening print window
               setTimeout(() => {
                   window.print();
                   document.getElementById('print-section').style.display = 'none';
 
                   document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
                   
-                  btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerHTML = 'Auto-printing in <span id="timer-count">5</span> seconds...';
+                  btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; 
                   
                   setTimeout(() => document.getElementById('sku-search').focus(), 10);
-              }, 300);
+              }, 100);
 
           } catch(e) {
               showToast("Failed to save entry.", "error");
-              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerHTML = 'Error. Click Print to retry.';
+              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false;
           }
       }
 
@@ -1049,7 +1029,7 @@
 
           setTimeout(() => {
               window.print(); document.getElementById('print-section').style.display = 'none'; closeAllModals(); document.getElementById('reprint-modal').style.display = 'flex';
-          }, 300);
+          }, 100);
       }
 
       function cancelReprintVerification() {
@@ -1175,14 +1155,11 @@
           const reqId = document.getElementById('receive-request-dropdown').value;
           if(!reqId) { playErrorSound(); return showToast("Please select a Request ID first!", "error"); }
 
-          // 1. Check local memory first for instant duplicate blocking
+          // 1. Check local memory first for instant duplicate blocking (Zero server lag)
           const targetLog = currentDashboardLogs.find(l => String(l.boxNum) === String(boxNum));
-          
-          // ALARM TRIGGER: If box is already received!
           if (targetLog && targetLog.receiveBy) {
               playAlarmSound();
               
-              // If they are scanning with the continuous mobile camera, use Toast instead of blocking Modal
               if (document.getElementById('camera-modal').style.display === 'flex') {
                   return showToast(`ALREADY RECEIVED: Box #${boxNum}`, "error");
               } else {
@@ -1190,7 +1167,7 @@
               }
           }
 
-          // 2. OPTIMISTIC UI UPDATE: Turn green instantly!
+          // 2. OPTIMISTIC UI UPDATE: Instantly turn row green before server responds!
           if (targetLog) {
               targetLog.receiveBy = activeOpsName;
               const statusCell = document.getElementById(`box-status-${boxNum}`);
@@ -1201,15 +1178,15 @@
           playSuccessReceiveSound();
           showToast(`Box #${boxNum} Received!`, "success");
 
-          // Snap focus back for the next physical scan
+          // Keep focus locked on input for continuous rapid-fire scanning
           setTimeout(() => document.getElementById('receive-box-scan').focus(), 10);
 
-          // 3. Silent background sync
+          // 3. Background server sync (happens silently without slowing down the operator)
           try {
               const res = await apiCall('receiveBox', { sheetName: activeSheetName, requestId: reqId, boxNum: boxNum, opsName: activeOpsName });
               if (res.error === "ALREADY_RECEIVED") {
                   playAlarmSound();
-                  loadReceiveDashboardData(); // Fix any de-syncs
+                  loadReceiveDashboardData(); // Re-sync if someone else scanned it simultaneously
                   
                   if (document.getElementById('camera-modal').style.display === 'flex') {
                       showToast(`ALREADY RECEIVED: Box #${boxNum}`, "error");
