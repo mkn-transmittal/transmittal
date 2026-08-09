@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Transmittal 1.1</title>
+    <title>[MKN] Transmittal</title>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <style>
       body {
@@ -378,7 +378,7 @@
 
     <script>
       // ==========================================
-      // 🚨 CRITICAL: PASTE YOUR NEW WEB APP URL HERE
+      // 🚨 CRITICAL: PASTE YOUR WEB APP URL HERE
       // ==========================================
       const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzAS9z14TLBnXyFfLNZab-Td6PmN4NUMP16he3QCuhhSkjiXlH1eQtZRef8Flnh9SWF/exec"; 
       
@@ -411,6 +411,15 @@
           document.getElementById('error-modal').style.display = 'none';
       }
 
+      function hideAllSections() {
+          document.getElementById('admin-gate').style.display = 'none'; // <--- FIX: Added this line to properly hide login screen
+          document.getElementById('scanner-section').style.display = 'none';
+          document.getElementById('dashboard-section').style.display = 'none';
+          document.getElementById('purpose-section').style.display = 'none';
+          document.getElementById('receive-login-section').style.display = 'none';
+          document.getElementById('receive-dashboard-section').style.display = 'none';
+      }
+
       window.addEventListener('DOMContentLoaded', () => {
           const savedSheet = sessionStorage.getItem("activeSheetName");
           const savedLevel = sessionStorage.getItem("accessLevel");
@@ -419,7 +428,7 @@
 
           if (savedSheet && savedLevel) {
               activeSheetName = savedSheet; accessLevel = savedLevel;
-              document.getElementById('admin-gate').style.display = 'none';
+              hideAllSections(); // FIX: Use the universal hide function
               document.getElementById('db-target-name').innerText = activeSheetName;
 
               if (savedOps) activeOpsName = savedOps;
@@ -427,7 +436,6 @@
               if (savedReq) {
                   activeRequestId = savedReq;
                   document.getElementById('current-target').innerText = activeRequestId;
-                  document.getElementById('purpose-section').style.display = 'none';
                   document.getElementById('scanner-section').style.display = 'block';
                   loadMasterData(); 
               } else {
@@ -537,14 +545,6 @@
           closeAllModals();
           document.getElementById('admin-gate').style.display = 'block';
           showToast("Successfully Logged Out", "success");
-      }
-
-      function hideAllSections() {
-          document.getElementById('scanner-section').style.display = 'none';
-          document.getElementById('dashboard-section').style.display = 'none';
-          document.getElementById('purpose-section').style.display = 'none';
-          document.getElementById('receive-login-section').style.display = 'none';
-          document.getElementById('receive-dashboard-section').style.display = 'none';
       }
 
       function triggerErrorModal(message, focusElementId, isAlarm = false) {
@@ -779,11 +779,9 @@
           btnPrint.innerText = "Saving & Printing..."; btnPrint.disabled = true; btnReentry.disabled = true; timerText.innerText = "Please wait. Locking in Box Number...";
 
           try {
-              // 1. SAVE TO DB FIRST TO GENERATE OFFICIAL BOX NUMBER
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
               playSuccessSubmitSound(); 
               
-              // 2. HIDE SUCCESS MODAL COMPLETELY BEFORE OPENING BROWSER PRINT
               closeAllModals();
 
               document.getElementById('print-request').innerText = "Request ID: " + pendingPayload.requestId;
@@ -802,12 +800,10 @@
                   JsBarcode("#print-box-barcode", "BOX-" + response.boxNumber, { format: "CODE128", width: 1.5, height: 40, displayValue: true, fontSize: 12, margin: 0 }); 
               } catch(e) {}
 
-              // Let the barcode render for a split second, then print
               setTimeout(() => {
                   window.print();
                   document.getElementById('print-section').style.display = 'none';
 
-                  // Clear the scanner inputs to start fresh
                   document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
                   
                   btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerHTML = 'Auto-printing in <span id="timer-count">5</span> seconds...';
@@ -837,8 +833,13 @@
 
       function switchToScanner() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
-          hideAllSections(); document.getElementById('scanner-section').style.display = 'block';
-          setTimeout(() => document.getElementById('sku-search').focus(), 10);
+          hideAllSections(); 
+          if(activeRequestId) {
+              document.getElementById('scanner-section').style.display = 'block';
+              setTimeout(() => document.getElementById('sku-search').focus(), 10);
+          } else {
+              document.getElementById('purpose-section').style.display = 'block';
+          }
       }
 
       async function loadDashboardData() {
