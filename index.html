@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <title>[MKN] Transmittal</title>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.min.js"></script>
+  
+  <script>
+    // Your Google Web App URL
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzAS9z14TLBnXyFfLNZab-Td6PmN4NUMP16he3QCuhhSkjiXlH1eQtZRef8Flnh9SWF/exec"; 
+    
+    // THE FETCHER: Downloads the face data
+    async function fetchAPI(params) {
+      const url = new URL(SCRIPT_URL);
+      Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
+      url.searchParams.append('t', Date.now()); 
+      try {
+        const response = await fetch(url.toString(), { method: 'GET', mode: 'cors', cache: 'no-store' });
+        const text = await response.text(); 
+        try {
+            return JSON.parse(text); 
+        } catch (jsonError) {
+            throw new Error("Google blocked the connection. Server replied: " + text.substring(0, 60));
+        }
+      } catch(e) { throw e; }
+    }
+
+    // THE POSTER: Sends the attendance scans to Google Sheets
+    async function postAPI(payload) {
+      try {
+        const response = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+        return await response.json();
+      } catch(e) { throw e; }
+    }
+  </script>
+
+  <style>
+    :root { --bg: #0f172a; --panel: #1e293b; --text: #f8fafc; --sub: #94a3b8; --border: #334155; --accent: #38bdf8; --success: #10b981; --error: #ef4444; --warning: #f59e0b; }
+    *, *::before, *::after { box-sizing: border-box; }
+    
+    /* Hide scrollbars to act like a true full-screen kiosk app */
+    html, body { height: 100%; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; background-color: #000; color: var(--text); overflow: hidden; }
+    
+    /* 1. THE MAIN FULL SCREEN WRAPPER */
+    .scanner-wrapper {
+        position: relative;
+        width: 100vw;
+        height: 100dvh; /* Adapts to mobile browser bars perfectly */
+        overflow: hidden;
+        background: #000;
+        box-sizing: border-box;
+        transition: all 0.3s ease;
+    }
+
+    /* Screen Flash Feedbacks */
+    body.flash-success .scanner-wrapper { box-shadow: inset 0 0 50px rgba(16, 185, 129, 0.8); border: 5px solid var(--success); }
+    body.flash-error .scanner-wrapper { box-shadow: inset 0 0 50px rgba(239, 68, 68, 0.8); border: 5px solid var(--error); }
+
+    /* 2. THE CAMERA FILLS THE SCREEN */
+    video, canvas { 
+        position: absolute; 
+        top: 0; left: 0; 
+        width: 100%; height: 100%; 
+        object-fit: cover; /* Stretches nicely without distorting */
+        transform: scaleX(-1); /* Mirror effect */
+        pointer-events: none;
+    }
+    video { z-index: 1; }
+    canvas { z-index: 2; } /* Keeps boxes on top of video */
+
+    /* 🔥 3. THE KIOSK SLEEP OVERLAY */
+    #sleepOverlay {
+        position: absolute; inset: 0; background: #000; z-index: 99999;
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        cursor: pointer;
+    }
+    .sleep-icon { font-size: 70px; margin-bottom: 20px; opacity: 0.6; }
+    .sleep-text { font-size: 38px; font-weight: 900; color: var(--accent); letter-spacing: 3px; text-align: center; animation: pulse 2s infinite; }
+    .sleep-sub { font-size: 16px; color: var(--sub); margin-top: 15px; font-weight: 600; text-align: center; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+    /* 4. THE TOP OVERLAY */
+    .overlay-top {
+        position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+        display: flex; justify-content: space-between; align-items: flex-start;
+        padding: 20px 30px 40px;
+        /* Dark gradient blending down so text is readable */
+        background: linear-gradient(to bottom, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.6) 50%, rgba(15,23,42,0) 100%);
+    }
+
+    /* 5. THE BOTTOM OVERLAY */
+    .overlay-bottom {
+        position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+        display: flex; flex-direction: column; align-items: center;
+        padding: 60px 20px 30px;
+        /* Dark gradient blending up */
+        background: linear-gradient(to top, rgba(15,23,42,0.95) 0%, rgba(15,23,42,0.8) 60%, rgba(15,23,42,0) 100%);
+        gap: 15px;
+    }
+
+    /* TOASTS & GATES */
+    #toastBox { position:fixed; top:20px; right:20px; z-index:99999; display:flex; flex-direction:column; gap:10px; pointer-events:none; }
+    .toast { min-width:250px; background:var(--panel); color:#fff; padding:15px 20px; border-radius:12px; font-weight:900; box-shadow:0 10px 40px rgba(0,0,0,0.5); display:flex; align-items:center; gap:12px; transform:translateX(120%); transition:transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); border: 1px solid var(--border); }
+    .toast.show { transform:translateX(0); }
+    .toast.success { border-left: 6px solid var(--success); }
+    .toast.error { border-left: 6px solid var(--error); }
+    .toast.info { border-left: 6px solid var(--accent); }
+
+    .gate { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(8px); padding: 20px; }
+    .gateCard { background: var(--panel); border: 1px solid var(--border); padding: 30px; border-radius: 20px; text-align: center; width: 100%; max-width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+    .gateTitle { font-size: 20px; font-weight: 900; color: var(--accent); margin-bottom: 5px; }
+    .gateInput { width: 100%; background: var(--bg); border: 2px solid var(--border); color: white; padding: 15px; border-radius: 12px; margin: 15px 0; font-size: 16px; text-align: center; font-weight: bold; outline: none; transition: 0.2s; }
+    .gateInput:focus { border-color: var(--accent); }
+    .gateBtn { width: 100%; background: var(--accent); color: #000; font-weight: 900; font-size: 16px; padding: 15px; border: none; border-radius: 12px; cursor: pointer; transition:0.2s; }
+    .gateBtn:active { transform: scale(0.95); }
+    .gateCancel { width: 100%; background: transparent; color: var(--sub); font-weight: bold; font-size: 14px; padding: 15px; border: 2px solid var(--border); border-radius: 12px; cursor: pointer; margin-top: 10px; transition:0.2s; }
+    .gateCancel:hover { background: var(--bg); color: #fff; }
+
+    .header-title { font-weight: 900; font-size: 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; white-space: nowrap; margin-top: 5px;}
+    
+    .toggle-nav-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 8px; cursor: pointer; padding: 4px 8px; font-size: 10px; font-weight: bold; margin-left: 10px; transition: 0.2s; backdrop-filter: blur(5px); }
+    .toggle-nav-btn:hover { background: rgba(255,255,255,0.2); }
+    .toggle-nav-btn:active { transform: scale(0.95); }
+
+    .nav-buttons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.3s ease; max-height: 200px; opacity: 1; overflow: hidden; }
+    .nav-buttons.hidden { max-height: 0; opacity: 0; margin: 0; pointer-events: none; }
+    
+    .mode-btn { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 8px 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 11px; white-space: nowrap; }
+    .mode-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .mode-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    .header-clock { text-align: right; flex-shrink: 0; }
+    .time { font-size: 20px; font-weight: 900; }
+    
+    .date { font-size: 12px; color: #ffffff; font-weight: 700; text-transform: uppercase; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+    
+    .capture-btn-wrap { width: 100%; max-width: 400px; z-index: 20; flex-shrink: 0; }
+    .capture-btn { width: 100%; background: var(--accent); color: #000; padding: 20px; border-radius: 16px; border: none; font-weight: 900; font-size: 18px; cursor: pointer; transition: transform 0.1s; box-shadow: 0 10px 20px rgba(56, 189, 248, 0.3);}
+    .capture-btn:active { transform: scale(0.96); box-shadow: 0 5px 10px rgba(56, 189, 248, 0.3);}
+
+    .ai-status-overlay { 
+        position: absolute; 
+        top: 50%; left: 50%; 
+        transform: translate(-50%, -50%); 
+        background: rgba(0,0,0,0.85); 
+        padding: 12px 24px; 
+        border-radius: 30px; 
+        font-weight: 900; 
+        font-size: 16px; 
+        color: var(--warning); 
+        z-index: 30; 
+        border: 2px solid var(--warning);
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .confirm-overlay { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 50; padding: 20px; backdrop-filter: blur(5px); }
+    .confirm-box { background: var(--panel); padding: 30px; border-radius: 20px; text-align: center; border: 2px solid var(--accent); width: 100%; max-width: 450px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);}
+    .confirm-name { font-size: 28px; color: #fff; font-weight: 900; margin: 10px 0 25px 0; }
+    
+    .action-grid { display: flex; gap: 12px; margin-bottom: 12px; width: 100%; }
+    .action-grid button { flex: 1; padding: 18px 10px; border-radius: 12px; border: none; font-weight: 900; font-size: 16px; cursor: pointer; transition: 0.1s; color: #fff; }
+    .action-grid button:active { transform: scale(0.95); }
+    .btn-time-in { background: var(--success); box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);}
+    .btn-time-out { background: var(--error); box-shadow: 0 5px 15px rgba(239, 68, 68, 0.3);}
+    
+    .btn-cancel { width: 100%; background: transparent; color: var(--sub); padding: 15px; border-radius: 12px; border: 2px solid var(--border); font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.1s; }
+    .btn-cancel:hover { background: var(--bg); color: #fff; }
+    .btn-cancel:active { transform: scale(0.95); }
+
+    .panel-wrapper { width: 100%; max-width: 800px; transition: all 0.3s ease; }
+    .bottom-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 20px; display: none; align-items: center; justify-content: center; gap: 15px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .bottom-panel.active { display: flex; }
+    
+    #panelScan { background: transparent; border: none; box-shadow: none; padding: 0; }
+    #panelReg.active, #panelEdit.active { flex-direction: column; align-items: stretch; }
+
+    .emp-details { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; }
+    .emp-name { font-size: 24px; font-weight: 900; margin: 0 0 8px 0; color: var(--text); text-shadow: 0 2px 10px rgba(0,0,0,0.8);}
+    .status-pill { align-self: center; padding: 6px 14px; border-radius: 12px; font-size: 14px; font-weight: 900; background: var(--bg); border: 1px solid var(--border); color: var(--sub); box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+
+    .qr-input-wrap { flex: 1; display: flex; flex-direction: column; gap: 10px; width: 100%; }
+    .qr-input { width: 100%; background: var(--bg); border: 2px solid var(--accent); color: white; padding: 15px; border-radius: 12px; font-size: 18px; font-weight: bold; text-align: center; text-transform: uppercase; outline: none; }
+    .qr-btn-row { display: flex; gap: 10px; }
+    .qr-btn { flex: 1; padding: 12px; border-radius: 10px; border: none; font-weight: 900; font-size: 14px; cursor: pointer; color: #fff; }
+    
+    .reg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+    .reg-input { background: var(--bg); border: 1px solid var(--border); color: white; padding: 10px; border-radius: 8px; font-size: 14px; outline: none; }
+    .reg-input:disabled { opacity: 0.8; cursor: not-allowed; border-color: var(--success); color: var(--success); font-weight: bold;}
+    .reg-input.full { grid-column: span 2; }
+    .reg-submit-btn { grid-column: span 2; background: var(--accent); color: #000; padding: 12px; border-radius: 8px; border: none; font-weight: 900; cursor: pointer; transition: 0.2s; }
+    .reg-submit-btn:active { transform: scale(0.97); }
+
+    .status-in { background: rgba(16, 185, 129, 0.15); border-color: var(--success); color: var(--success); }
+    .status-out { background: rgba(239, 68, 68, 0.15); border-color: var(--error); color: var(--error); }
+    .status-proc { background: rgba(245, 158, 11, 0.15); border-color: var(--warning); color: var(--warning); }
+
+    @media (max-width: 768px) {
+        .overlay-top { flex-direction: column; gap: 15px; align-items: center; padding: 15px 15px 30px; }
+        .header-title { margin-right: 0; justify-content: center; width: 100%; margin-top: 0;}
+        .nav-buttons { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .mode-btn { width: 100%; padding: 12px 5px; font-size: 11px; text-align: center; }
+        .header-clock { text-align: center; margin-left: 0; width: 100%; }
+        
+        .overlay-bottom { padding: 40px 15px 20px; }
+        .bottom-panel { padding: 15px; flex-direction: column; text-align: center; }
+        .emp-name { font-size: 18px; }
+        
+        .reg-grid { grid-template-columns: 1fr; gap: 8px; }
+        .reg-grid > * { grid-column: span 1 !important; }
+        .flex-row-mobile { flex-direction: column !important; }
+        .flex-row-mobile button { width: 100% !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="toastBox"></div>
+
+<div id="adminGate" class="gate">
+  <div class="gateCard">
+    <div class="gateTitle">🔒 ADMIN ACCESS REQUIRED</div>
+    <div style="color:var(--sub); font-size:14px; margin-bottom: 15px;">Please verify your identity to access this mode.</div>
+    <input id="adminPass" class="gateInput" type="password" placeholder="Admin Password" />
+    <button id="adminBtn" class="gateBtn" type="button">UNLOCK MODE</button>
+    <button class="gateCancel" type="button" onclick="cancelAdminUnlock()">CANCEL</button>
+  </div>
+</div>
+
+<div class="scanner-wrapper" id="camContainer">
+    
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
+    
+    <div class="ai-status-overlay" id="aiStatus" style="display:none;"></div>
+
+    <div id="sleepOverlay" onclick="wakeUpCamera()">
+        <div class="sleep-icon">💤</div>
+        <div class="sleep-text">TAP TO WAKE UP</div>
+        <div class="sleep-sub">Camera is sleeping to save power</div>
+    </div>
+
+    <div class="overlay-top">
+        <div class="header-title">
+            MKN-ATTENDANCE V.8
+            <button class="toggle-nav-btn" onclick="toggleNav()" id="toggleNavBtn" title="Show/Hide Menu">❌CLOSE</button>
+        </div>
+        <div class="nav-buttons" id="mainNavButtons">
+            <button class="mode-btn active" id="btnModeScan" onclick="switchMode('SCAN')">⛶FACESCAN</button>
+            <button class="mode-btn" id="btnModeQR" onclick="switchMode('QR')">🧾QRSCAN</button>
+            <button class="mode-btn" id="btnModeReg" onclick="switchMode('REGISTER')">🆕NEW EMP</button>
+            <button class="mode-btn" id="btnModeEdit" onclick="switchMode('EDIT')">✏️EDITEMP</button>
+        </div>
+        <div class="header-clock">
+          <div class="time" id="clock">00:00:00</div>
+          <div class="date" id="clockDate">—</div>
+        </div>
+    </div>
+
+    <div class="overlay-bottom">
+        <div class="capture-btn-wrap" id="captureWrap">
+            <button class="capture-btn" id="captureBtn" onclick="captureAndAnalyze()">📸 CAPTURE & RECOGNIZE</button>
+        </div>
+
+        <div class="panel-wrapper">
+            <div class="bottom-panel active" id="panelScan">
+              <div class="emp-details">
+                <h2 class="emp-name" id="empName">WAITING FOR SCAN</h2>
+                <div class="status-pill" id="statusLine">READY</div>
+              </div>
+            </div>
+
+            <div class="bottom-panel" id="panelQR">
+                <div class="qr-input-wrap">
+                    <input type="text" class="qr-input" id="qrInput" placeholder="SCAN OR TYPE CODE HERE (e.g. MIK-235)">
+                    <div class="qr-btn-row">
+                        <button class="qr-btn" style="background:var(--success)" onclick="submitQR('IN')">📸 TIME IN</button>
+                        <button class="qr-btn" style="background:var(--error)" onclick="submitQR('OUT')">📸 TIME OUT</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bottom-panel" id="panelReg">
+                <div class="reg-grid">
+                    <input type="text" class="reg-input full" id="regCode" disabled placeholder="FETCHING NEXT CODE...">
+                    <input type="text" class="reg-input" id="regName" placeholder="Full Name">
+                    <select class="reg-input" id="regDept">
+                        <option value="" disabled selected>Select Dept</option>
+                        <option value="ASSEMBLY">ASSEMBLY</option>
+                        <option value="FULFILLMENT">FULFILLMENT</option>
+                        <option value="OFFLINE">OFFLINE</option>
+                    </select>
+                    <select class="reg-input" id="regShift">
+                        <option value="" disabled selected>Select Shift</option>
+                        <option value="MORNING SHIFT">MORNING</option>
+                        <option value="NIGHT SHIFT">NIGHT</option>
+                    </select>
+                    <input type="text" class="reg-input" id="regMobile" placeholder="Mobile Number">
+                    <select class="reg-input" id="regStatus"><option value="ACTIVE">ACTIVE</option></select>
+                    <input type="text" class="reg-input full" id="regAddress" placeholder="Home Address">
+                    <button class="reg-submit-btn full" id="regSubmitBtn" onclick="submitRegistration()">📸 MAP FACE & SAVE HR RECORD</button>
+                </div>
+            </div>
+
+            <div class="bottom-panel" id="panelEdit">
+                <div class="reg-grid">
+                    <div style="grid-column: span 2; display:flex; gap:10px;" class="flex-row-mobile">
+                        <input type="text" class="reg-input" id="editSearchCode" placeholder="Enter Code (e.g. MIK-1)" style="flex:1; text-transform:uppercase;">
+                        <button class="reg-submit-btn" style="width:80px; padding:10px;" onclick="loadEmployeeForEdit()">LOAD</button>
+                    </div>
+                    <input type="text" class="reg-input" id="editName" placeholder="Full Name">
+                    <select class="reg-input" id="editDept">
+                        <option value="" disabled selected>Select Dept</option>
+                        <option value="ASSEMBLY">ASSEMBLY</option>
+                        <option value="FULFILLMENT">FULFILLMENT</option>
+                        <option value="OFFLINE">OFFLINE</option>
+                    </select>
+                    <select class="reg-input" id="editShift">
+                        <option value="" disabled selected>Select Shift</option>
+                        <option value="MORNING SHIFT">MORNING</option>
+                        <option value="NIGHT SHIFT">NIGHT</option>
+                    </select>
+                    <input type="text" class="reg-input" id="editMobile" placeholder="Mobile Number">
+                    <select class="reg-input" id="editStatus">
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="INACTIVE">INACTIVE</option>
+                    </select>
+                    <input type="text" class="reg-input full" id="editAddress" placeholder="Home Address">
+                    <div style="grid-column: span 2; display:flex; gap:10px; margin-top: 4px;" class="flex-row-mobile">
+                        <button class="reg-submit-btn" style="background:var(--success); flex:1;" onclick="submitEdit(false)">💾 SAVE INFO ONLY</button>
+                        <button class="reg-submit-btn" style="background:var(--warning); flex:1; color:#000;" onclick="submitEdit(true)">📸 UPDATE + NEW FACE</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="confirm-overlay" id="confirmModal">
+        <div class="confirm-box">
+            <div style="color:var(--sub); font-weight:bold; letter-spacing:1px;">EMPLOYEE IDENTIFIED</div>
+            <div class="confirm-name" id="confirmName">ARCHIE (MIK-235)</div>
+            
+            <div class="action-grid">
+                <button class="btn-time-in" id="btnTimeIn" onclick="submitScan('IN')">🟢 TIME IN</button>
+                <button class="btn-time-out" id="btnTimeOut" onclick="submitScan('OUT')">🔴 TIME OUT</button>
+            </div>
+            
+            <button class="btn-cancel" onclick="resetScanner()">❌ CANCEL / RETRY</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+  // 🔥 KIOSK 10-MINUTE SLEEP TIMER LOGIC
+  let kioskIdleTimer;
+  let isCameraSleeping = false;
+  const KIOSK_SLEEP_MS = 300000; // 5 minutes
+
+  function resetKioskTimer() {
+      if (isCameraSleeping) return; 
+      clearTimeout(kioskIdleTimer);
+      kioskIdleTimer = setTimeout(putCameraToSleep, KIOSK_SLEEP_MS);
+  }
+
+  function putCameraToSleep() {
+      isCameraSleeping = true;
+      document.getElementById('sleepOverlay').style.display = 'flex';
+      
+      // Turn off the physical camera to save power and stop overheating
+      const vid = document.getElementById('video');
+      if (vid.srcObject) {
+          vid.srcObject.getTracks().forEach(track => track.stop());
+          vid.srcObject = null;
+      }
+  }
+
+  function wakeUpCamera() {
+      if (!isCameraSleeping) return;
+      document.getElementById('sleepOverlay').style.display = 'none';
+      isCameraSleeping = false;
+      
+      showToast("Waking up camera...", "info");
+      document.getElementById('aiStatus').style.display = "block"; 
+      document.getElementById('aiStatus').textContent = "STARTING CAMERA...";
+      
+      startCameraFeed();
+      resetKioskTimer();
+  }
+
+  // Listen for activity anywhere on the screen to reset the sleep timer
+  ['touchstart', 'click', 'mousemove', 'keypress'].forEach(evt => {
+      document.addEventListener(evt, resetKioskTimer);
+  });
+
+  function showToast(msg, type='info') {
+    const box = document.getElementById('toastBox');
+    const toast = document.createElement('div');
+    let icon = "ℹ️";
+    if(type === 'success') icon = "✅";
+    if(type === 'error') icon = "❌";
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<span>${icon}</span> <span>${msg}</span>`;
+    box.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3500);
+  }
+
+  function triggerSuccessFeedback() { document.body.classList.add('flash-success'); setTimeout(() => { document.body.classList.remove('flash-success'); }, 400); }
+  function triggerErrorFeedback() { document.body.classList.add('flash-error'); setTimeout(() => { document.body.classList.remove('flash-error'); }, 400); }
+
+  let adminToken = "";
+  let currentMode = "SCAN"; 
+  let pendingModeRequest = ""; 
+  let globalFacesMap = {}; 
+  let pendingEmpCode = ""; 
+  
+  const adminGate = document.getElementById('adminGate');
+  const adminPass = document.getElementById('adminPass');
+  const adminBtn  = document.getElementById('adminBtn');
+
+  function capturePhotoBase64() {
+      const vid = document.getElementById('video');
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = vid.videoWidth; tempCanvas.height = vid.videoHeight;
+      const ctx = tempCanvas.getContext('2d');
+      ctx.translate(tempCanvas.width, 0); ctx.scale(-1, 1);
+      ctx.drawImage(vid, 0, 0, tempCanvas.width, tempCanvas.height);
+      return tempCanvas.toDataURL('image/jpeg', 0.8);
+  }
+
+  function toggleNav() {
+      const nav = document.getElementById('mainNavButtons');
+      const btn = document.getElementById('toggleNavBtn');
+      nav.classList.toggle('hidden');
+      if (nav.classList.contains('hidden')) { btn.innerHTML = '⚙️OPTION'; btn.style.opacity = '0.7'; } 
+      else { btn.innerHTML = '❌CLOSE'; btn.style.opacity = '1'; }
+  }
+
+  function cancelAdminUnlock() {
+      adminGate.style.display = "none";
+      adminPass.value = "";
+      pendingModeRequest = "";
+  }
+
+  async function tryUnlock(){
+    const p = String(adminPass.value || "");
+    if (!p) return showToast('Please enter a password', 'error');
+    adminBtn.disabled = true; adminBtn.textContent = "CHECKING...";
+    try {
+      const res = await fetchAPI({ page: 'api_verify_admin', pass: p });
+      adminBtn.disabled = false; adminBtn.textContent = "UNLOCK MODE";
+      if (res && res.ok && res.token){
+        adminToken = res.token; adminGate.style.display = "none"; adminPass.value = ""; showToast('Access Granted!', 'success');
+        if(pendingModeRequest) { switchMode(pendingModeRequest, true); pendingModeRequest = ""; }
+      } else { adminPass.value = ""; showToast('Incorrect Password', 'error'); }
+    } catch(err) { adminBtn.disabled = false; adminBtn.textContent = "UNLOCK MODE"; showToast('Server Communication Error', 'error'); }
+  }
+
+  adminBtn.addEventListener('click', tryUnlock);
+  adminPass.addEventListener('keydown', (e)=>{ if (e.key === "Enter"){ e.preventDefault(); tryUnlock(); } });
+
+  function tick(){
+    const d = new Date();
+    document.getElementById('clock').textContent = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    document.getElementById('clockDate').textContent = `${["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"][d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  }
+  setInterval(tick, 1000); tick();
+
+  function switchMode(mode, skipAuth = false) {
+      if ((mode === 'REGISTER' || mode === 'EDIT') && !adminToken && !skipAuth) {
+          pendingModeRequest = mode; adminGate.style.display = "flex"; document.getElementById('adminPass').focus(); return;
+      }
+      if (mode !== 'REGISTER' && mode !== 'EDIT' && adminToken) { adminToken = ""; showToast("Device Secured. Admin Modes Locked.", "info"); }
+      currentMode = mode;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.bottom-panel').forEach(p => p.classList.remove('active'));
+      const capBtn = document.getElementById('captureWrap');
+      if(mode === 'SCAN') { document.getElementById('btnModeScan').classList.add('active'); document.getElementById('panelScan').classList.add('active'); capBtn.style.display = "block";
+      } else if (mode === 'QR') { document.getElementById('btnModeQR').classList.add('active'); document.getElementById('panelQR').classList.add('active'); capBtn.style.display = "none"; document.getElementById('qrInput').focus();
+      } else if (mode === 'REGISTER') { document.getElementById('btnModeReg').classList.add('active'); document.getElementById('panelReg').classList.add('active'); capBtn.style.display = "none"; fetchNextEmployeeCode(); 
+      } else if (mode === 'EDIT') { document.getElementById('btnModeEdit').classList.add('active'); document.getElementById('panelEdit').classList.add('active'); capBtn.style.display = "none"; document.getElementById('editSearchCode').focus(); }
+  }
+
+  const empNameEl = document.getElementById('empName');
+  const statusLineEl = document.getElementById('statusLine');
+
+  function setStatusLine(s, type){
+    statusLineEl.textContent = String(s || "READY").trim().toUpperCase();
+    statusLineEl.className = "status-pill";
+    if (type === "proc") statusLineEl.classList.add("status-proc");
+    if (type === "in") { statusLineEl.classList.add("status-in"); triggerSuccessFeedback(); }
+    if (type === "out") { statusLineEl.classList.add("status-out"); triggerErrorFeedback(); }
+  }
+
+  const video = document.getElementById('video');
+  const overlay = document.getElementById('overlay');
+  const aiStatus = document.getElementById('aiStatus');
+  let faceMatcher = null;
+
+  async function runStartupEmployeeUpdate(){
+    setStatusLine("INITIALIZING...", "proc");
+    try {
+      fetchAPI({ page: 'api_startup' }); 
+      startAIEngine();
+    } catch(err) { setStatusLine("ERROR", "out"); }
+  }
+
+ async function startAIEngine() {
+      const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+      aiStatus.style.display = "block";
+      aiStatus.textContent = "VERIFYING AI MODELS...";
+      
+      try {
+          await Promise.all([
+            faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+          ]);
+
+          const cachedFaces = localStorage.getItem('mkn_face_cache_v4');
+          
+          if (cachedFaces) {
+              const data = JSON.parse(cachedFaces);
+              await initializeMatcher(data);
+              startCameraFeed();
+              syncFacesInBackground();
+          } else {
+              aiStatus.textContent = "DOWNLOADING FAST DATABASE (First boot)...";
+              const res = await fetchAPI({ page: 'api_get_faces' });
+              
+              if(res && res.ok && res.faces) {
+                  localStorage.setItem('mkn_face_cache_v4', JSON.stringify(res.faces));
+                  await initializeMatcher(res.faces);
+                  startCameraFeed();
+              } else {
+                  throw new Error(res.error || "Server refused to send the database.");
+              }
+          }
+      } catch(e) { 
+          let errMsg = "Unknown Error";
+          if (e && e.message) errMsg = e.message;
+          else if (typeof e === 'string') errMsg = e;
+          else errMsg = JSON.stringify(e);
+
+          aiStatus.style.display = "block"; 
+          aiStatus.textContent = "BOOT ERROR: " + errMsg;
+          showToast("Failed to start: " + errMsg, "error");
+          console.error("FULL DIAGNOSTIC ERROR:", e);
+      }
+  }
+  
+  async function initializeMatcher(faces) {
+      const labeledDescriptors = faces.map(f => {
+          globalFacesMap[f.code] = f.name; 
+          const float32Array = new Float32Array(JSON.parse(f.descriptor));
+          return new faceapi.LabeledFaceDescriptors(f.code, [float32Array]); 
+      });
+      if(labeledDescriptors.length > 0) faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.45);
+      setStatusLine("READY", "");
+  }
+
+  async function startCameraFeed() {
+      try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+          video.srcObject = stream;
+          video.onloadedmetadata = () => { 
+              overlay.width = video.videoWidth; 
+              overlay.height = video.videoHeight; 
+              aiStatus.style.display = "none"; 
+          };
+      } catch (err) {
+          showToast("Camera access failed", "error");
+      }
+  }
+
+  async function syncFacesInBackground() {
+      try {
+          const res = await fetchAPI({ page: 'api_get_faces' });
+          if(res.ok && res.faces) {
+              localStorage.setItem('mkn_face_cache_v4', JSON.stringify(res.faces));
+              const labeledDescriptors = res.faces.map(f => {
+                 globalFacesMap[f.code] = f.name; 
+                 const float32Array = new Float32Array(JSON.parse(f.descriptor));
+                 return new faceapi.LabeledFaceDescriptors(f.code, [float32Array]); 
+              });
+              faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.45);
+          }
+      } catch(e) { console.warn("Background sync failed."); }
+  }
+
+  async function captureAndAnalyze() {
+      if(!faceMatcher) { showToast('Database empty or loading', 'error'); return; }
+      const ctx = overlay.getContext('2d'); ctx.clearRect(0, 0, overlay.width, overlay.height);
+      try {
+          const options = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
+          const detection = await faceapi.detectSingleFace(video, options).withFaceLandmarks().withFaceDescriptor();
+          if (!detection) throw new Error("NO FACE DETECTED");
+          
+          const displaySize = { width: video.videoWidth, height: video.videoHeight };
+          const resizedDetection = faceapi.resizeResults(detection, displaySize);
+          
+          const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+          if (bestMatch.label !== "unknown" && bestMatch.distance < 0.45) {
+              const drawBox = new faceapi.draw.DrawBox(resizedDetection.detection.box, { label: bestMatch.label, boxColor: '#10b981' });
+              drawBox.draw(overlay);
+              pendingEmpCode = bestMatch.label;
+              document.getElementById('confirmName').textContent = `${globalFacesMap[pendingEmpCode] || pendingEmpCode} (${pendingEmpCode})`;
+              document.getElementById('confirmModal').style.display = 'flex';
+          } else {
+              const drawBox = new faceapi.draw.DrawBox(resizedDetection.detection.box, { label: "Unrecognized", boxColor: '#ef4444' });
+              drawBox.draw(overlay);
+              throw new Error("UNRECOGNIZED FACE");
+          }
+      } catch (err) {
+          showToast(err.message, 'error'); empNameEl.textContent = err.message; setStatusLine("ACCESS DENIED", "out"); triggerErrorFeedback(); 
+          setTimeout(resetScanner, 3000);
+      }
+  }
+
+  function resetScanner() {
+      document.getElementById('confirmModal').style.display = 'none';
+      pendingEmpCode = "";
+      empNameEl.textContent = "WAITING FOR SCAN"; setStatusLine("READY", ""); 
+      const ctx = overlay.getContext('2d'); ctx.clearRect(0, 0, overlay.width, overlay.height);
+      const btnIn = document.getElementById('btnTimeIn'); const btnOut = document.getElementById('btnTimeOut');
+      btnIn.disabled = false; btnIn.textContent = "🟢 TIME IN"; btnOut.disabled = false; btnOut.textContent = "🔴 TIME OUT";
+  }
+
+  async function submitScan(actionType) {
+    document.getElementById('confirmModal').style.display = 'none';
+    setStatusLine("SAVING " + actionType + "...", "proc");
+    const btnIn = document.getElementById('btnTimeIn'); const btnOut = document.getElementById('btnTimeOut');
+    btnIn.disabled = true; btnOut.disabled = true;
+    try {
+      const res = await postAPI({ page: 'api_scan', code: pendingEmpCode, adminToken: adminToken, action: actionType, photoB64: "" });
+      if(!res || !res.ok) throw new Error(res.error || res.statusLine || "FAILED");
+      setStatusLine(`${actionType} SAVED`, actionType === "IN" ? "in" : "out");
+      showToast(`${globalFacesMap[pendingEmpCode] || pendingEmpCode} successfully timed ${actionType.toLowerCase()}!`, 'success');
+      setTimeout(resetScanner, 3000);
+    } catch(err) {
+      setStatusLine(err.message || "SERVER ERROR", "out");
+      showToast('Failed to save attendance', 'error');
+      setTimeout(resetScanner, 3000);
+    }
+  }
+
+  async function submitQR(actionType) {
+      const code = document.getElementById('qrInput').value.trim().toUpperCase();
+      if(!code) return showToast('Please type or scan a code first.', 'error');
+      document.getElementById('qrInput').value = "UPLOADING PHOTO...";
+      pendingEmpCode = code;
+      const photoB64 = capturePhotoBase64();
+      try {
+        const res = await postAPI({ page: 'api_scan', code: pendingEmpCode, adminToken: adminToken, action: actionType, photoB64: photoB64 });
+        if(!res || !res.ok) throw new Error(res.error || res.statusLine || "FAILED");
+        showToast(`${code} successfully timed ${actionType.toLowerCase()}!`, 'success');
+        document.getElementById('qrInput').value = "";
+      } catch(err) {
+        showToast(err.message || "Upload Failed", 'error');
+        document.getElementById('qrInput').value = "";
+      }
+  }
+
+  async function fetchNextEmployeeCode() {
+      try { const res = await fetchAPI({ page: 'api_get_next_code' }); if (res.ok) document.getElementById('regCode').value = res.nextCode; } catch(e) { document.getElementById('regCode').value = "ERROR FETCHING CODE"; }
+  }
+
+  async function submitRegistration() {
+      const code = document.getElementById('regCode').value; const name = document.getElementById('regName').value; const dept = document.getElementById('regDept').value; const shift = document.getElementById('regShift').value; const mobile = document.getElementById('regMobile').value; const status = document.getElementById('regStatus').value; const address = document.getElementById('regAddress').value;
+      if(!name || !dept || !shift) return showToast("Name, Dept, and Shift are required.", "error");
+      aiStatus.style.display = "block"; aiStatus.textContent = "MAPPING FACE... HOLD STILL";
+      const btn = document.getElementById('regSubmitBtn'); btn.disabled = true;
+      const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+      if(!detection) { aiStatus.style.display = "none"; btn.disabled = false; return showToast("ERROR: NO FACE DETECTED. PLEASE LOOK AT CAMERA.", "error"); }
+      aiStatus.textContent = "UPLOADING HR PROFILE...";
+      const photoB64 = capturePhotoBase64(); const descStr = JSON.stringify(Array.from(detection.descriptor));
+      try {
+          const res = await postAPI({ page: 'api_register_hr', adminToken: adminToken, code: code, name: name, dept: dept, shift: shift, mobile: mobile, status: status, address: address, faceDescriptor: descStr, profilePhotoB64: photoB64 });
+          if(res.ok) { showToast(`Success! ${name} is now registered.`, 'success'); document.getElementById('regName').value = ""; document.getElementById('regMobile').value = ""; document.getElementById('regAddress').value = ""; aiStatus.style.display = "none"; btn.disabled = false; runStartupEmployeeUpdate(); switchMode('SCAN'); } 
+          else { aiStatus.style.display = "none"; btn.disabled = false; showToast("Registration Failed: " + (res.error || "Unknown Error"), 'error'); }
+      } catch(e) { aiStatus.style.display = "none"; btn.disabled = false; showToast("Network Error during upload!", 'error'); }
+  }
+
+  async function loadEmployeeForEdit() {
+      const code = document.getElementById('editSearchCode').value.trim().toUpperCase(); if (!code) return showToast("Please enter an employee code.", "error");
+      showToast("Searching Database...", "info");
+      try {
+          const res = await fetchAPI({ page: 'api_get_emp', code: code, adminToken: adminToken });
+          if (res.ok) { document.getElementById('editName').value = res.name || ""; document.getElementById('editDept').value = res.dept || ""; document.getElementById('editShift').value = res.shift || ""; document.getElementById('editMobile').value = res.mobile || ""; document.getElementById('editStatus').value = res.status || "ACTIVE"; document.getElementById('editAddress').value = res.address || ""; showToast(`Loaded ${res.name}`, "success"); } 
+          else { showToast(res.error || "Employee not found", "error"); }
+      } catch(e) { showToast("Network Error while fetching.", "error"); }
+  }
+
+  async function submitEdit(updateFace) {
+      const code = document.getElementById('editSearchCode').value.trim().toUpperCase(); const name = document.getElementById('editName').value; const dept = document.getElementById('editDept').value; const shift = document.getElementById('editShift').value; const mobile = document.getElementById('editMobile').value; const status = document.getElementById('editStatus').value; const address = document.getElementById('editAddress').value;
+      if(!code || !name || !dept || !shift) return showToast("Code, Name, Dept, and Shift are required.", "error");
+      let descStr = ""; let photoB64 = "";
+      if (updateFace) {
+          aiStatus.style.display = "block"; aiStatus.textContent = "MAPPING NEW FACE... HOLD STILL";
+          const detection = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+          if(!detection) { aiStatus.style.display = "none"; return showToast("ERROR: NO FACE DETECTED.", "error"); }
+          descStr = JSON.stringify(Array.from(detection.descriptor)); photoB64 = capturePhotoBase64();
+      }
+      aiStatus.style.display = "block"; aiStatus.textContent = "SAVING UPDATES...";
+      try {
+          const res = await postAPI({ page: 'api_update_hr', adminToken: adminToken, code: code, name: name, dept: dept, shift: shift, mobile: mobile, status: status, address: address, faceDescriptor: descStr, profilePhotoB64: photoB64 });
+          if(res.ok) { showToast(`Success! Profile updated.`, 'success'); aiStatus.style.display = "none"; if (updateFace) runStartupEmployeeUpdate(); document.getElementById('editSearchCode').value = ""; document.getElementById('editName').value = ""; document.getElementById('editMobile').value = ""; document.getElementById('editAddress').value = ""; switchMode('SCAN'); } 
+          else { aiStatus.style.display = "none"; showToast("Update Failed: " + (res.error || "Unknown Error"), 'error'); }
+      } catch(e) { aiStatus.style.display = "none"; showToast("Network Error!", 'error'); }
+  }
+
+  const OFFICE_LAT = 14.6322; const OFFICE_LON = 120.9976; const MAX_DISTANCE_METERS = 100; 
+  function getDistance(lat1, lon1, lat2, lon2) { const R = 6371e3; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180; const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2); const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return R * c; }
+  
+  function showGeoError(title, desc) { 
+      document.body.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#0f172a; color:#fff; text-align:center; padding:20px; font-family:sans-serif;"><div style="font-size:80px; margin-bottom:10px;">📍</div><h1 style="color:#ef4444; font-size:32px; margin:0 0 10px 0; font-weight:900;">${title}</h1><h3 style="color:#94a3b8; font-weight:normal; line-height:1.5;">${desc}</h3><button onclick="window.location.reload()" style="margin-top:30px; padding:15px 30px; background:#38bdf8; color:#000; border:none; border-radius:12px; font-weight:900; cursor:pointer; transition:0.2s;">RETRY LOCATION</button></div>`; 
+  }
+  
+  function verifyLocationAndStart() {
+      if (!navigator.geolocation) return showGeoError("UNSUPPORTED DEVICE", "Your device or browser does not support GPS location.");
+      showToast("Verifying GPS Location...", "info");
+      navigator.geolocation.getCurrentPosition(
+          (position) => {
+              const distance = getDistance(OFFICE_LAT, OFFICE_LON, position.coords.latitude, position.coords.longitude);
+              if (distance <= MAX_DISTANCE_METERS) { showToast("Location Verified!", "success"); runStartupEmployeeUpdate(); } 
+              else { showGeoError("ACCESS DENIED", `You are too far from the office.<br>Distance: ${Math.round(distance)} meters away.`); }
+          },
+          (error) => {
+              let msg = "Could not get your location.";
+              if (error.code === 1) msg = "You blocked the location request. Please allow location access in your browser settings.";
+              if (error.code === 2) msg = "Your GPS signal is unavailable right now.";
+              if (error.code === 3) msg = "The location request timed out.";
+              showGeoError("LOCATION REQUIRED", msg);
+          }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+  }
+  
+  window.addEventListener("DOMContentLoaded", () => { 
+      verifyLocationAndStart(); 
+      resetKioskTimer(); // Start the idle timer when the page loads
+  });
+</script>
+</body>
+</html>
