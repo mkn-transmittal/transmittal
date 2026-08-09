@@ -17,6 +17,7 @@
         overflow-x: hidden;
       }
       
+      /* --- SLEEK DARK SIDEBAR CSS --- */
       .sidebar {
         height: 100%; width: 250px; position: fixed; z-index: 3000;
         top: 0; left: -250px; background-color: #111827; overflow-x: hidden;
@@ -156,7 +157,7 @@
       <a onclick="switchToScanner()"><span>📦</span> Scanner</a>
       <a onclick="switchToDashboard()"><span>📊</span> Dashboard Log</a>
       <a onclick="switchToReceiveLogin()"><span>📥</span> Receive Transmittal</a>
-      <a onclick="logOut()" style="color: #F44336; margin-top: auto; margin-bottom: 30px;"><span>🚪</span> Log Out</a>
+      <a onclick="logOut()" style="color: #F44336; border-top: 1px solid #1f2937; margin-top: 10px;"><span>🚪</span> Log Out</a>
     </div>
 
     <div class="container" id="admin-gate">
@@ -223,16 +224,17 @@
         </div>
         
         <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 1;">
+            <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 140px;">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666; font-weight:bold;">1. Select Request ID</label>
                 <select id="receive-request-dropdown" onchange="loadReceiveDashboardData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;">
                     <option value="">Loading...</option>
                 </select>
             </div>
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 2;">
+            <div style="display: flex; flex-direction: column; text-align: left; flex: 2; min-width: 200px;">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #2196F3; font-weight:bold;">2. Scan Box # Barcode to Receive</label>
                 <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" inputmode="none" autocomplete="off">
             </div>
+            <button onclick="loadReceiveDashboardData()" class="blue-btn" style="margin:0; height: 42px; padding: 0 15px; font-size: 14px; width: auto; background-color: #2196F3;">🔄 Refresh</button>
         </div>
 
         <div class="table-responsive">
@@ -379,7 +381,7 @@
 
     <script>
       // ==========================================
-      // 🚨 CRITICAL: PASTE YOUR WEB APP URL HERE
+      // 🚨 CRITICAL: PASTE YOUR NEW WEB APP URL HERE
       // ==========================================
       const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzAS9z14TLBnXyFfLNZab-Td6PmN4NUMP16he3QCuhhSkjiXlH1eQtZRef8Flnh9SWF/exec"; 
       
