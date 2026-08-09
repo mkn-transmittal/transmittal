@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>[MKN] TRANSMITTAL</title>
+    <title>[MKN] Transmittal</title>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <style>
       body {
@@ -17,13 +17,12 @@
         overflow-x: hidden;
       }
       
-      /* --- SLEEK DARK SIDEBAR CSS --- */
       .sidebar {
         height: 100%; width: 250px; position: fixed; z-index: 3000;
         top: 0; left: -250px; background-color: #111827; overflow-x: hidden;
         transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding-top: 60px; 
         box-shadow: 4px 0 15px rgba(0,0,0,0.3);
-        display: flex; flex-direction: column; /* FIX: Prevents overlap */
+        display: flex; flex-direction: column; 
       }
       .sidebar.open { left: 0; }
       .sidebar a {
@@ -48,7 +47,6 @@
       }
       .menu-btn { font-size: 24px; cursor: pointer; background: none; border: none; color: #333; padding: 0; display: flex; align-items: center;}
 
-      /* --- TOAST NOTIFICATIONS CSS --- */
       #toast {
         visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
         text-align: center; border-radius: 8px; padding: 16px; position: fixed;
@@ -61,7 +59,6 @@
       #toast.success { background-color: #4CAF50; }
       #toast.error { background-color: #F44336; }
 
-      /* --- MAIN APP CSS --- */
       .container {
         background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         text-align: center; width: 100%; max-width: 500px; position: relative; z-index: 10;
@@ -72,7 +69,7 @@
       }
       input[type="password"], input[type="text"], input[type="number"], select {
         width: 90%; padding: 12px; margin: 10px 0 20px 0; border: 1px solid #ccc;
-        border-radius: 4px; font-size: 16px;
+        border-radius: 4px; font-size: 16px; box-sizing: border-box;
       }
       .input-wrapper { position: relative; width: 100%; }
       .suggestions-box {
@@ -241,11 +238,12 @@
                         <th>Counters</th>
                         <th>Date Logged</th>
                         <th>Prints</th>
+                        <th>Last Reprint By</th>
                         <th>Action</th>
                     </tr>
                 </thead>
                 <tbody id="dashboard-table-body">
-                    <tr><td colspan="8" style="text-align: center; color: #777;">Loading logs...</td></tr>
+                    <tr><td colspan="9" style="text-align: center; color: #777;">Loading logs...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -274,14 +272,30 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="reprint-auth-modal">
+        <div class="modal-card">
+            <div class="modal-icon-success" style="color: #ff9800;">🔐</div>
+            <div class="success-title" style="color: #333;">Reprint Authorization</div>
+            <p style="color: #666; margin-bottom: 15px; line-height: 1.5; font-size: 14px;">Scan your Staff ID to authorize this reprint.</p>
+            
+            <div class="input-wrapper" style="text-align: left; margin-bottom: 20px;">
+                <input type="text" id="reprint-auth-input" placeholder="Scan Badge..." onkeydown="handleReprintAuthEnter(event)" style="width: 100%; box-sizing: border-box;" autocomplete="off" inputmode="none">
+            </div>
+
+            <div class="modal-btn-group">
+                <button class="btn-error" onclick="cancelReprintAuth()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="reprint-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #2196F3;">🖨️</div>
             <div class="success-title" style="color: #333;">Print Check</div>
             <p style="color: #666; margin-bottom: 25px; line-height: 1.5; font-size: 16px;">Did the label print successfully?</p>
             <div class="modal-btn-group">
-                <button class="btn-reentry" style="background-color: #F44336;" onclick="cancelReprint()">No, Cancel</button>
-                <button class="btn-print" onclick="confirmReprint()">Yes, Printed</button>
+                <button class="btn-reentry" style="background-color: #F44336;" onclick="cancelReprintVerification()">No, Cancel</button>
+                <button class="btn-print" onclick="confirmReprintVerification()">Yes, Printed</button>
             </div>
         </div>
     </div>
@@ -329,17 +343,18 @@
       let scannerTimer;
       
       let pendingReprintRow = null;
-      let currentDashboardLogs = []; // Stores logs in memory for fast frontend searching
+      let pendingReprintData = null; 
+      let authorizedReprintStaff = ""; // Holds the name of the person who authorized the reprint
+      let currentDashboardLogs = []; 
 
-      // --- SESSION PERSISTENCE (Anti-Reload Fix) ---
+      // --- SESSION PERSISTENCE ---
       window.addEventListener('DOMContentLoaded', () => {
           const savedSheet = sessionStorage.getItem("activeSheetName");
           const savedLevel = sessionStorage.getItem("accessLevel");
           const savedReq = sessionStorage.getItem("activeRequestId");
 
           if (savedSheet && savedLevel) {
-              activeSheetName = savedSheet;
-              accessLevel = savedLevel;
+              activeSheetName = savedSheet; accessLevel = savedLevel;
               document.getElementById('admin-gate').style.display = 'none';
               document.getElementById('db-target-name').innerText = activeSheetName;
 
@@ -348,7 +363,7 @@
                   document.getElementById('current-target').innerText = activeRequestId;
                   document.getElementById('purpose-section').style.display = 'none';
                   document.getElementById('scanner-section').style.display = 'block';
-                  loadMasterData(); // Fetch SKUs so they can start scanning immediately
+                  loadMasterData(); 
               } else {
                   document.getElementById('purpose-section').style.display = 'block';
                   loadRequestIds();
@@ -366,29 +381,21 @@
               const result = await response.json();
               if(!result.success) throw new Error(result.error);
               return result.data;
-          } catch (err) {
-              console.error(err);
-              throw err;
-          }
+          } catch (err) { console.error(err); throw err; }
       }
 
       function showToast(message, type = 'loading') {
           const toast = document.getElementById("toast");
-          toast.className = "toast show " + type;
-          toast.innerText = message;
+          toast.className = "toast show " + type; toast.innerText = message;
           if (type !== 'loading') { setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000); }
       }
       
       function hideToast() { document.getElementById("toast").className = "toast"; }
 
       function toggleSidebar() {
-          const sidebar = document.getElementById("sidebar");
-          const overlay = document.getElementById("sidebar-overlay");
-          if (sidebar.classList.contains("open")) {
-              sidebar.classList.remove("open"); overlay.style.display = "none";
-          } else {
-              sidebar.classList.add("open"); overlay.style.display = "block";
-          }
+          const sidebar = document.getElementById("sidebar"); const overlay = document.getElementById("sidebar-overlay");
+          if (sidebar.classList.contains("open")) { sidebar.classList.remove("open"); overlay.style.display = "none";
+          } else { sidebar.classList.add("open"); overlay.style.display = "block"; }
       }
 
       function playScanSound() {
@@ -428,11 +435,8 @@
         } catch(e) {}
       }
 
-      // --- LOGOUT ENGINE ---
       function logOut() {
-          toggleSidebar();
-          sessionStorage.clear(); // Wipes memory so user is fully logged out
-          
+          toggleSidebar(); sessionStorage.clear(); 
           activeSheetName = ""; accessLevel = ""; activeRequestId = ""; masterSkuData = []; masterStaffData = []; 
           document.getElementById('admin-password').value = ""; document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
           document.getElementById('scanner-section').style.display = 'none'; document.getElementById('dashboard-section').style.display = 'none'; document.getElementById('purpose-section').style.display = 'none'; document.getElementById('admin-gate').style.display = 'block';
@@ -453,7 +457,6 @@
           clearInterval(countdownTimer); pendingPayload = null; document.getElementById('success-modal').style.display = 'none'; setTimeout(() => document.getElementById('sku-search').focus(), 10);
       }
 
-      // --- SMART AUTHENTICATION ---
       async function checkPassword() {
         const pass = document.getElementById('admin-password').value;
         if(!pass) return;
@@ -465,27 +468,15 @@
         
         try {
             const response = await apiCall('verifyAdminPassword', { pass: pass });
-            hideToast();
-            document.getElementById('btn-login').disabled = false;
+            hideToast(); document.getElementById('btn-login').disabled = false;
 
             if (response.valid) {
-              activeSheetName = response.sheetName;
-              accessLevel = response.type;
-              
-              // Save to Session Storage so reloading won't log them out!
-              sessionStorage.setItem("activeSheetName", activeSheetName);
-              sessionStorage.setItem("accessLevel", accessLevel);
-
-              document.getElementById('admin-gate').style.display = 'none';
-              document.getElementById('purpose-section').style.display = 'block';
-              document.getElementById('db-target-name').innerText = activeSheetName;
+              activeSheetName = response.sheetName; accessLevel = response.type;
+              sessionStorage.setItem("activeSheetName", activeSheetName); sessionStorage.setItem("accessLevel", accessLevel);
+              document.getElementById('admin-gate').style.display = 'none'; document.getElementById('purpose-section').style.display = 'block'; document.getElementById('db-target-name').innerText = activeSheetName;
               loadRequestIds();
-            } else { 
-                errorMsg.style.display = 'block'; playErrorSound();
-            }
-        } catch(e) {
-            hideToast(); document.getElementById('btn-login').disabled = false; showToast("Server Error", "error");
-        }
+            } else { errorMsg.style.display = 'block'; playErrorSound(); }
+        } catch(e) { hideToast(); document.getElementById('btn-login').disabled = false; showToast("Server Error", "error"); }
       }
 
       async function loadRequestIds() {
@@ -499,42 +490,30 @@
       }
       
       function toggleNewRequestInput() {
-        const dropdown = document.getElementById('request-dropdown');
-        const newTextInput = document.getElementById('new-request-name');
+        const dropdown = document.getElementById('request-dropdown'); const newTextInput = document.getElementById('new-request-name');
         newTextInput.style.display = (dropdown.value === 'CREATE_NEW') ? 'inline-block' : 'none';
       }
       
       function confirmRequest() {
-        const dropdown = document.getElementById('request-dropdown');
-        let chosenRequest = dropdown.value;
+        const dropdown = document.getElementById('request-dropdown'); let chosenRequest = dropdown.value;
         if (chosenRequest === 'CREATE_NEW') chosenRequest = document.getElementById('new-request-name').value;
         
         if (!chosenRequest || chosenRequest.trim() === "") return triggerErrorModal("Please select or type a Request ID.", "request-dropdown");
         
-        activeRequestId = chosenRequest;
-        sessionStorage.setItem("activeRequestId", activeRequestId); // Save to prevent reload reset
-
+        activeRequestId = chosenRequest; sessionStorage.setItem("activeRequestId", activeRequestId); 
         document.getElementById('current-target').innerText = activeRequestId;
-        document.getElementById('purpose-section').style.display = 'none';
-        document.getElementById('scanner-section').style.display = 'block';
-        
+        document.getElementById('purpose-section').style.display = 'none'; document.getElementById('scanner-section').style.display = 'block';
         loadMasterData(); 
       }
 
       async function loadMasterData() {
          showToast("Syncing Database...", "loading");
          try {
-             const [skus, staff] = await Promise.all([
-                 apiCall('getSkuData'),
-                 apiCall('getStaffList')
-             ]);
-             masterSkuData = skus;
-             masterStaffData = staff;
+             const [skus, staff] = await Promise.all([ apiCall('getSkuData'), apiCall('getStaffList') ]);
+             masterSkuData = skus; masterStaffData = staff;
              showToast("Database Synced! Ready to scan.", "success");
              setTimeout(() => document.getElementById('sku-search').focus(), 100);
-         } catch(e) {
-             showToast("Failed to sync database", "error");
-         }
+         } catch(e) { showToast("Failed to sync database", "error"); }
       }
 
       function selectSku(skuName) { document.getElementById('sku-search').value = skuName; document.getElementById('sku-suggestions').style.display = 'none'; playScanSound(); document.getElementById('box-qty').focus(); }
@@ -589,11 +568,9 @@
 
             const box = document.getElementById(boxId);
             if (box.style.display === 'block') {
-                const items = box.getElementsByClassName('suggestion-item');
-                let currentIndex = -1;
+                const items = box.getElementsByClassName('suggestion-item'); let currentIndex = -1;
                 for (let i = 0; i < items.length; i++) { if (items[i].classList.contains('active-suggestion')) { currentIndex = i; break; } }
-                if (currentIndex > -1) return items[currentIndex].click();
-                else if (items.length === 1) return items[0].click();
+                if (currentIndex > -1) return items[currentIndex].click(); else if (items.length === 1) return items[0].click();
             }
             playErrorSound(); document.getElementById(inputId).value = ""; return;
         }
@@ -658,8 +635,7 @@
         document.getElementById('timer-count').innerText = timeLeft;
         
         countdownTimer = setInterval(() => {
-            timeLeft--;
-            document.getElementById('timer-count').innerText = timeLeft;
+            timeLeft--; document.getElementById('timer-count').innerText = timeLeft;
             if (timeLeft <= 0) { clearInterval(countdownTimer); actionPrint(); }
         }, 1000);
       }
@@ -669,12 +645,9 @@
           const btnPrint = document.getElementById('btn-confirm-print');
           if (btnPrint.disabled) return; 
 
-          const btnReentry = document.getElementById('btn-reentry');
-          const timerText = document.getElementById('timer-display');
+          const btnReentry = document.getElementById('btn-reentry'); const timerText = document.getElementById('timer-display');
           
-          btnPrint.innerText = "Saving & Printing...";
-          btnPrint.disabled = true; btnReentry.disabled = true;
-          timerText.innerText = "Please wait. Locking in Box Number...";
+          btnPrint.innerText = "Saving & Printing..."; btnPrint.disabled = true; btnReentry.disabled = true; timerText.innerText = "Please wait. Locking in Box Number...";
 
           try {
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
@@ -699,14 +672,12 @@
               document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
               
               document.getElementById('success-modal').style.display = 'none';
-              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false;
-              timerText.innerHTML = 'Auto-printing in <span id="timer-count">5</span> seconds...';
+              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerHTML = 'Auto-printing in <span id="timer-count">5</span> seconds...';
               
               setTimeout(() => document.getElementById('sku-search').focus(), 10);
           } catch(e) {
               showToast("Failed to save entry.", "error");
-              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false;
-              timerText.innerHTML = 'Error. Click Print to retry.';
+              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerHTML = 'Error. Click Print to retry.';
           }
       }
 
@@ -715,8 +686,7 @@
           const sidebar = document.getElementById("sidebar");
           if(sidebar.classList.contains("open")) toggleSidebar();
           
-          document.getElementById('scanner-section').style.display = 'none';
-          document.getElementById('dashboard-section').style.display = 'flex';
+          document.getElementById('scanner-section').style.display = 'none'; document.getElementById('dashboard-section').style.display = 'flex';
           
           try {
               const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
@@ -731,8 +701,7 @@
           const sidebar = document.getElementById("sidebar");
           if(sidebar.classList.contains("open")) toggleSidebar();
           
-          document.getElementById('dashboard-section').style.display = 'none';
-          document.getElementById('scanner-section').style.display = 'block';
+          document.getElementById('dashboard-section').style.display = 'none'; document.getElementById('scanner-section').style.display = 'block';
           setTimeout(() => document.getElementById('sku-search').focus(), 10);
       }
 
@@ -742,55 +711,43 @@
 
           try {
               const logs = await apiCall('getDashboardLogs', { sheetName: activeSheetName, requestId: reqId });
-              hideToast();
-              currentDashboardLogs = logs || []; // Save to memory
-              applyFilters(); // Renders the table instantly
+              hideToast(); currentDashboardLogs = logs || []; applyFilters(); 
           } catch(e) { hideToast(); showToast("Failed to load logs", "error"); }
       }
 
       function applyFilters() {
           const tbody = document.getElementById('dashboard-table-body');
-          const dateFilter = document.getElementById('filter-date').value; // Returns YYYY-MM-DD
+          const dateFilter = document.getElementById('filter-date').value; 
           const searchFilter = document.getElementById('filter-search').value.toLowerCase();
 
           tbody.innerHTML = '';
-          if (currentDashboardLogs.length === 0) {
-              tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #777;">No boxes logged yet.</td></tr>';
-              return;
-          }
+          if (currentDashboardLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #777;">No boxes logged yet.</td></tr>'; return; }
 
           let filteredLogs = [...currentDashboardLogs].reverse();
 
           if (dateFilter || searchFilter) {
               filteredLogs = filteredLogs.filter(log => {
                   let match = true;
-                  
-                  // Date logic: Compare HTML date (YYYY-MM-DD) to Sheet date (MM/DD/YYYY HH:MM:SS)
                   if (dateFilter) {
-                      const logDateStr = log.date.split(' ')[0]; // Gets just the MM/DD/YYYY
+                      const logDateStr = log.date.split(' ')[0]; 
                       const [logM, logD, logY] = logDateStr.split('/');
                       const logDateISO = `${logY}-${logM.padStart(2,'0')}-${logD.padStart(2,'0')}`;
                       if (logDateISO !== dateFilter) match = false;
                   }
-
-                  // Super Search: Looks for text in SKU, Box, Staff names, and Request ID
                   if (searchFilter && match) {
-                      const searchableString = `${log.sku} ${log.c1} ${log.c2} ${log.requestId} box#${log.boxNum}`.toLowerCase();
+                      const searchableString = `${log.sku} ${log.c1} ${log.c2} ${log.requestId} box#${log.boxNum} ${log.lastReprintBy}`.toLowerCase();
                       if (!searchableString.includes(searchFilter)) match = false;
                   }
-
                   return match;
               });
           }
 
-          if (filteredLogs.length === 0) {
-              tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #777;">No matching logs found.</td></tr>';
-              return;
-          }
+          if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #777;">No matching logs found.</td></tr>'; return; }
 
-          // Print table to screen
           filteredLogs.forEach(log => {
               let counters = log.c2 ? `${log.c1} / ${log.c2}` : log.c1;
+              let reprintBadge = log.lastReprintBy ? `<span style="font-size: 11px; background: #eee; padding: 2px 6px; border-radius: 4px;">👤 ${log.lastReprintBy}</span>` : `<span style="color:#aaa;">-</span>`;
+              
               tbody.innerHTML += `
                   <tr>
                       <td><span style="background: #eef2f3; padding: 4px 8px; border-radius: 4px;">${log.requestId}</span></td>
@@ -800,52 +757,106 @@
                       <td>${counters}</td>
                       <td>${log.date}</td>
                       <td><span style="background: #e3f2fd; padding: 3px 8px; border-radius: 4px; font-weight:bold;">${log.printCount}x</span></td>
-                      <td><button onclick="reprintLabel('${log.requestId}', '${log.sku}', '${log.barcode}', '${log.qty}', '${log.boxNum}', '${log.c1}', '${log.c2}', ${log.rowIndex})" class="orange-btn">🖨️ Reprint</button></td>
+                      <td>${reprintBadge}</td>
+                      <td><button onclick="initiateReprint('${log.requestId}', '${log.sku}', '${log.barcode}', '${log.qty}', '${log.boxNum}', '${log.c1}', '${log.c2}', ${log.rowIndex})" class="orange-btn">🖨️ Reprint</button></td>
                   </tr>
               `;
           });
       }
 
-      // --- REPRINT LOGIC ---
-      function reprintLabel(reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex) {
-          document.getElementById('print-request').innerText = "Request ID: " + reqId;
-          document.getElementById('print-sku').innerText = sku;
-          document.getElementById('print-qty').innerText = "Qty: " + qty;
-          document.getElementById('print-box').innerText = "Box #" + boxNum;
-          document.getElementById('print-c1').innerText = "C1: " + c1;
-          document.getElementById('print-c2').innerText = "C2: " + c2;
+      // --- 1. REPRINT AUTHORIZATION PHASE ---
+      function initiateReprint(reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex) {
+          // Store the data temporarily
+          pendingReprintData = { reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex };
+          pendingReprintRow = rowIndex;
+          
+          // Clear input and show the Auth Modal
+          document.getElementById('reprint-auth-input').value = "";
+          document.getElementById('reprint-auth-modal').style.display = 'flex';
+          setTimeout(() => document.getElementById('reprint-auth-input').focus(), 100);
+      }
+
+      function cancelReprintAuth() {
+          pendingReprintData = null;
+          pendingReprintRow = null;
+          authorizedReprintStaff = "";
+          document.getElementById('reprint-auth-modal').style.display = 'none';
+      }
+
+      function handleReprintAuthEnter(e) {
+          if (e.key === "Enter") {
+              e.preventDefault();
+              const input = document.getElementById('reprint-auth-input').value.trim().toLowerCase();
+              
+              // Verify the scanned name against the master staff list
+              const exactMatch = masterStaffData.find(row => String(row[0]).toLowerCase() === input || String(row[1] || "").toLowerCase() === input);
+              
+              if (exactMatch) {
+                  playScanSound();
+                  authorizedReprintStaff = exactMatch[0]; // Save their official name
+                  document.getElementById('reprint-auth-modal').style.display = 'none';
+                  
+                  // Proceed to print the label
+                  executeReprintLabel();
+              } else {
+                  playErrorSound();
+                  document.getElementById('reprint-auth-input').value = "";
+                  showToast("Invalid Badge. Please scan a valid Staff ID.", "error");
+              }
+          }
+      }
+
+      // --- 2. EXECUTE BROWSER PRINT PHASE ---
+      function executeReprintLabel() {
+          const data = pendingReprintData;
+          document.getElementById('print-request').innerText = "Request ID: " + data.reqId;
+          document.getElementById('print-sku').innerText = data.sku;
+          document.getElementById('print-qty').innerText = "Qty: " + data.qty;
+          document.getElementById('print-box').innerText = "Box #" + data.boxNum;
+          document.getElementById('print-c1').innerText = "C1: " + data.c1;
+          document.getElementById('print-c2').innerText = "C2: " + data.c2;
           document.getElementById('print-date').innerText = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
 
           document.getElementById('print-section').style.display = 'flex';
-          try { JsBarcode("#print-barcode", barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); } catch(e) {}
+          try { JsBarcode("#print-barcode", data.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); } catch(e) {}
 
           setTimeout(() => {
               window.print();
               document.getElementById('print-section').style.display = 'none';
 
-              pendingReprintRow = rowIndex;
+              // Open the "Did it print?" Verification Modal
               document.getElementById('reprint-modal').style.display = 'flex';
           }, 300);
       }
 
-      function cancelReprint() {
+      // --- 3. REPRINT VERIFICATION PHASE ---
+      function cancelReprintVerification() {
+          pendingReprintData = null;
           pendingReprintRow = null;
+          authorizedReprintStaff = "";
           document.getElementById('reprint-modal').style.display = 'none';
           showToast("Reprint cancelled. Count not added.", "info");
       }
 
-      async function confirmReprint() {
+      async function confirmReprintVerification() {
           document.getElementById('reprint-modal').style.display = 'none';
-          if (!pendingReprintRow) return;
+          if (!pendingReprintRow || !authorizedReprintStaff) return;
 
-          showToast("Updating print count...", "loading");
+          showToast("Saving reprint data...", "loading");
           try {
-              await apiCall('incrementPrintCount', { sheetName: activeSheetName, rowIndex: pendingReprintRow });
+              await apiCall('incrementPrintCount', { 
+                  sheetName: activeSheetName, 
+                  rowIndex: pendingReprintRow,
+                  staffName: authorizedReprintStaff // Send the authorized person's name to the backend!
+              });
+              
               pendingReprintRow = null;
+              pendingReprintData = null;
+              authorizedReprintStaff = "";
               loadDashboardData(); 
-              showToast("Print count updated!", "success");
+              showToast("Reprint logged successfully!", "success");
           } catch(e) {
-              showToast("Failed to update count.", "error");
+              showToast("Failed to save reprint log.", "error");
           }
       }
     </script>
