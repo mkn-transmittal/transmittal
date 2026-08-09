@@ -139,7 +139,9 @@
       .btn-print { background: #4CAF50; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-reentry { background: #ff9800; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-error { background: #F44336; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 15px; }
-      
+      .timer-text { font-size: 14px; color: #777; margin-top: 15px; font-weight: bold;}
+      #error-message { color: red; margin-top: 10px; display: none; font-weight: bold; }
+
       @media print {
         html, body { width: 150mm; height: 100mm; margin: 0 !important; padding: 0 !important; background: white !important; overflow: hidden !important; }
         body * { visibility: hidden !important; } 
@@ -175,7 +177,7 @@
       <p>Enter your department password</p>
       <input type="password" id="admin-password" placeholder="Enter Password" onkeydown="if(event.key === 'Enter') checkPassword()">
       <button onclick="checkPassword()" id="btn-login">Unlock Scanner</button>
-      <div id="error-message" style="color: red; margin-top: 10px; display: none; font-weight: bold;">Incorrect password. Please try again.</div>
+      <div id="error-message">Incorrect password. Please try again.</div>
     </div>
 
     <div class="container" id="purpose-section" style="display: none;">
@@ -246,13 +248,13 @@
         </div>
         
         <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 140px;">
+            <div style="display: flex; flex-direction: column; text-align: left; flex: 1;">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666; font-weight:bold;">1. Select Request ID</label>
                 <select id="receive-request-dropdown" onchange="loadReceiveDashboardData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;">
                     <option value="">Loading...</option>
                 </select>
             </div>
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 2; min-width: 200px;">
+            <div style="display: flex; flex-direction: column; text-align: left; flex: 2;">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #2196F3; font-weight:bold;">2. Scan Box # Barcode to Receive</label>
                 <div style="display: flex; gap: 8px; width: 100%;">
                     <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" inputmode="none" autocomplete="off">
@@ -343,7 +345,8 @@
                 <button class="btn-reentry" id="btn-reentry" onclick="actionReEntry()">Re-Entry</button>
                 <button class="btn-print" id="btn-confirm-print" onclick="actionPrint()">Print</button>
             </div>
-            </div>
+            <div class="timer-text" id="timer-display" style="color: #2196F3; margin-top: 15px; font-weight: bold;"></div>
+        </div>
     </div>
 
     <div class="modal-overlay" id="reprint-auth-modal">
@@ -854,15 +857,20 @@
         document.getElementById('success-modal').style.display = 'flex';
       }
 
+      // --- INSTANT PRINT UPON CLICKING "PRINT" ---
       async function actionPrint() {
           const btnPrint = document.getElementById('btn-confirm-print');
           if (btnPrint.disabled) return; 
 
           const btnReentry = document.getElementById('btn-reentry'); 
+          const timerText = document.getElementById('timer-display');
           
-          btnPrint.innerText = "Saving & Printing..."; btnPrint.disabled = true; btnReentry.disabled = true; 
+          btnPrint.innerText = "Connecting to Database..."; 
+          btnPrint.disabled = true; btnReentry.disabled = true; 
+          timerText.innerText = "Securing official Box Number from Google...";
 
           try {
+              // Only waits for Google to safely assign the Box # (Usually 1-2 sec)
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
               playSuccessSubmitSound(); 
               
@@ -884,21 +892,22 @@
                   JsBarcode("#print-box-barcode", "BOX-" + response.boxNumber, { format: "CODE128", width: 1.5, height: 40, displayValue: true, fontSize: 12, margin: 0 }); 
               } catch(e) {}
 
-              // Extremely fast 0.1-second rendering delay before opening print window
-              setTimeout(() => {
-                  window.print();
-                  document.getElementById('print-section').style.display = 'none';
+              // Zero delay: prints exactly as the barcode finishes drawing
+              window.print();
+              
+              document.getElementById('print-section').style.display = 'none';
 
-                  document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
-                  
-                  btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; 
-                  
-                  setTimeout(() => document.getElementById('sku-search').focus(), 10);
-              }, 100);
+              document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
+              
+              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; 
+              timerText.innerText = "";
+              
+              setTimeout(() => document.getElementById('sku-search').focus(), 10);
 
           } catch(e) {
               showToast("Failed to save entry.", "error");
-              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false;
+              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; 
+              timerText.innerText = 'Error. Click Print to retry.';
           }
       }
 
@@ -1029,7 +1038,7 @@
 
           setTimeout(() => {
               window.print(); document.getElementById('print-section').style.display = 'none'; closeAllModals(); document.getElementById('reprint-modal').style.display = 'flex';
-          }, 100);
+          }, 300);
       }
 
       function cancelReprintVerification() {
