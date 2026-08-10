@@ -139,8 +139,24 @@
       .btn-print { background: #4CAF50; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-reentry { background: #ff9800; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-error { background: #F44336; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 15px; }
-      .timer-text { font-size: 14px; color: #777; margin-top: 15px; font-weight: bold;}
-      #error-message { color: red; margin-top: 10px; display: none; font-weight: bold; }
+
+      /* --- NEW: RESPONSIVE MOBILE LAYOUT FIX --- */
+      .responsive-filter-bar {
+        display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; 
+        background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;
+        flex-wrap: wrap; /* Allows items to wrap to next line on small screens */
+      }
+      .responsive-filter-item {
+        display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 200px;
+      }
+      .responsive-filter-btn {
+        margin:0; height: 42px; padding: 0 15px; font-size: 14px; width: auto; background-color: #2196F3;
+      }
+      /* On tiny PDA screens, make everything stack neatly to 100% width */
+      @media (max-width: 600px) {
+        .responsive-filter-item { width: 100%; min-width: 100%; }
+        .responsive-filter-btn { width: 100%; margin-top: 10px; }
+      }
 
       @media print {
         html, body { width: 150mm; height: 100mm; margin: 0 !important; padding: 0 !important; background: white !important; overflow: hidden !important; }
@@ -177,7 +193,7 @@
       <p>Enter your department password</p>
       <input type="password" id="admin-password" placeholder="Enter Password" onkeydown="if(event.key === 'Enter') checkPassword()">
       <button onclick="checkPassword()" id="btn-login">Unlock Scanner</button>
-      <div id="error-message">Incorrect password. Please try again.</div>
+      <div id="error-message" style="color: red; margin-top: 10px; display: none; font-weight: bold;">Incorrect password. Please try again.</div>
     </div>
 
     <div class="container" id="scanner-section" style="display: none; max-width: 480px;">
@@ -253,21 +269,21 @@
             <div style="font-size: 14px; font-weight: bold; background: #e3f2fd; color: #1976D2; padding: 4px 10px; border-radius: 6px;">👤 <span id="active-ops-label">User</span></div>
         </div>
         
-        <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 1;">
+        <div class="responsive-filter-bar">
+            <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666; font-weight:bold;">1. Select Request ID</label>
                 <select id="receive-request-dropdown" onchange="loadReceiveDashboardData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;">
                     <option value="">Loading...</option>
                 </select>
             </div>
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 2;">
+            <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #2196F3; font-weight:bold;">2. Scan Box # Barcode to Receive</label>
                 <div style="display: flex; gap: 8px; width: 100%;">
                     <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" autocomplete="off">
                     <button class="cam-btn" style="border-radius: 4px; height: 42px;" onclick="openCamera('receive-box-scan')">📷</button>
                 </div>
             </div>
-            <button onclick="loadReceiveDashboardData()" class="blue-btn" style="margin:0; height: 42px; padding: 0 15px; font-size: 14px; width: auto; background-color: #2196F3;">🔄 Refresh</button>
+            <button onclick="loadReceiveDashboardData()" class="blue-btn responsive-filter-btn">🔄 Refresh</button>
         </div>
 
         <div class="table-responsive">
@@ -294,22 +310,22 @@
             <h2 style="margin: 0; font-size: 20px;">Finished Counts</h2>
         </div>
         
-        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 140px;">
+        <div class="responsive-filter-bar">
+            <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666;">Request ID</label>
                 <select id="dashboard-request-dropdown" onchange="loadDashboardData()" style="margin:0; width: 100%; padding: 8px;">
                     <option value="">Loading...</option>
                 </select>
             </div>
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 130px;">
+            <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666;">Filter by Date</label>
                 <input type="date" id="filter-date" onchange="applyFilters()" style="margin:0; width: 100%; padding: 6px;">
             </div>
-            <div style="display: flex; flex-direction: column; text-align: left; flex: 2; min-width: 180px;">
+            <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666;">Search SKU, Box, Staff...</label>
                 <input type="text" id="filter-search" oninput="applyFilters()" placeholder="Type to search..." style="margin:0; width: 100%; padding: 8px;" inputmode="text">
             </div>
-            <button onclick="loadDashboardData()" class="blue-btn" style="margin:0; height: 38px; padding: 0 15px; font-size: 14px; width: auto;">🔄 Refresh</button>
+            <button onclick="loadDashboardData()" class="blue-btn responsive-filter-btn" style="height: 38px;">🔄 Refresh</button>
         </div>
 
         <div class="table-responsive">
@@ -519,6 +535,7 @@
           document.getElementById('admin-gate').style.display = 'none'; 
           document.getElementById('scanner-section').style.display = 'none';
           document.getElementById('dashboard-section').style.display = 'none';
+          document.getElementById('purpose-section').style.display = 'none';
           document.getElementById('receive-login-section').style.display = 'none';
           document.getElementById('receive-dashboard-section').style.display = 'none';
       }
@@ -798,7 +815,6 @@
 
       function enforceScannerOnly(e, inputId) {
           if (e.key === 'Enter') { clearTimeout(scannerTimer); const boxId = inputId === 'counter-1' ? 'c1-suggestions' : 'c2-suggestions'; handleKeyNavigation(e, boxId); return; }
-          // ALLOW PDA TYPING WITH 500MS TIMER
           clearTimeout(scannerTimer); scannerTimer = setTimeout(() => { document.getElementById(inputId).value = ""; playErrorSound(); }, 500); 
       }
 
@@ -937,17 +953,17 @@
                   JsBarcode("#print-box-barcode", "BOX-" + response.boxNumber, { format: "CODE128", width: 1.5, height: 40, displayValue: true, fontSize: 12, margin: 0 }); 
               } catch(e) {}
 
-              setTimeout(() => {
-                  window.print();
-                  document.getElementById('print-section').style.display = 'none';
+              // HYPER-OPTIMIZED: ZERO DELAY BEFORE PRINTING
+              window.print();
+              
+              document.getElementById('print-section').style.display = 'none';
 
-                  document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
-                  
-                  btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; 
-                  timerText.innerText = "";
-                  
-                  setTimeout(() => document.getElementById('sku-search').focus(), 10);
-              }, 100);
+              document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
+              
+              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; 
+              timerText.innerText = "";
+              
+              setTimeout(() => document.getElementById('sku-search').focus(), 10);
 
           } catch(e) {
               showToast("Failed to save entry.", "error");
@@ -1068,7 +1084,6 @@
               }
               return;
           }
-          // ALLOW PDA TYPING WITH 500MS TIMER
           clearTimeout(opsScannerTimer);
           opsScannerTimer = setTimeout(() => { document.getElementById('reprint-auth-input').value = ""; }, 500);
       }
@@ -1141,7 +1156,6 @@
               }
               return;
           }
-          // ALLOW PDA TYPING WITH 500MS TIMER
           clearTimeout(opsScannerTimer);
           opsScannerTimer = setTimeout(() => { document.getElementById('ops-passkey').value = ""; }, 500);
       }
@@ -1201,7 +1215,6 @@
               if (val) processBoxReceiveOptimistic(val);
               return;
           }
-          // ALLOW PDA TYPING WITH 500MS TIMER
           clearTimeout(receiveScannerTimer);
           receiveScannerTimer = setTimeout(() => { document.getElementById('receive-box-scan').value = ""; }, 500);
       }
