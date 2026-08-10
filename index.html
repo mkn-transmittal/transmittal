@@ -197,19 +197,19 @@
         <label>Search Item (SKU / Barcode):</label>
         <div class="input-row">
             <div class="input-wrapper">
-                <input type="text" id="sku-search" placeholder="Type or scan barcode..." oninput="handleSkuSearch()" onkeydown="handleKeyNavigation(event, 'sku-suggestions')" autocomplete="off" inputmode="none">
+                <input type="text" id="sku-search" placeholder="Type or scan barcode..." oninput="handleSkuSearch()" onkeydown="handleKeyNavigation(event, 'sku-suggestions')" autocomplete="off">
                 <div id="sku-suggestions" class="suggestions-box"></div>
             </div>
             <button class="cam-btn" onclick="openCamera('sku-search')">📷</button>
         </div>
         
         <label>Quantity:</label>
-        <input type="text" id="box-qty" placeholder="Enter Box Qty" onkeydown="handleQtyEnter(event)" inputmode="none" autocomplete="off">
+        <input type="text" id="box-qty" placeholder="Enter Box Qty" onkeydown="handleQtyEnter(event)" autocomplete="off">
 
         <label>Counter 1:</label>
         <div class="input-row">
             <div class="input-wrapper">
-                <input type="text" id="counter-1" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-1')" autocomplete="off" inputmode="none">
+                <input type="text" id="counter-1" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-1')" autocomplete="off">
                 <div id="c1-suggestions" class="suggestions-box"></div>
             </div>
             <button class="cam-btn" onclick="openCamera('counter-1')">📷</button>
@@ -218,7 +218,7 @@
         <label>Counter 2:</label>
         <div class="input-row" id="counter-2-wrapper">
             <div class="input-wrapper">
-                <input type="text" id="counter-2" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-2')" autocomplete="off" inputmode="none">
+                <input type="text" id="counter-2" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-2')" autocomplete="off">
                 <div id="c2-suggestions" class="suggestions-box"></div>
             </div>
             <button class="cam-btn" onclick="openCamera('counter-2')">📷</button>
@@ -233,7 +233,7 @@
         <p style="color: #666; font-size: 14px; margin-bottom: 25px;">Scan your Ops Passkey (QR) to unlock the receiving module.</p>
         <div class="input-row" style="margin-left: 0; width: 100%;">
             <div class="input-wrapper">
-                <input type="text" id="ops-passkey" placeholder="Scan Passkey Here..." onkeydown="handleOpsLoginScan(event)" autocomplete="off" inputmode="none" style="border: 2px solid #2196F3; font-weight: bold; text-align: center;">
+                <input type="text" id="ops-passkey" placeholder="Scan Passkey Here..." onkeydown="handleOpsLoginScan(event)" autocomplete="off" style="border: 2px solid #2196F3; font-weight: bold; text-align: center;">
             </div>
             <button class="cam-btn" onclick="openCamera('ops-passkey')">📷</button>
         </div>
@@ -257,7 +257,7 @@
             <div style="display: flex; flex-direction: column; text-align: left; flex: 2;">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #2196F3; font-weight:bold;">2. Scan Box # Barcode to Receive</label>
                 <div style="display: flex; gap: 8px; width: 100%;">
-                    <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" inputmode="none" autocomplete="off">
+                    <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" autocomplete="off">
                     <button class="cam-btn" style="border-radius: 4px; height: 42px;" onclick="openCamera('receive-box-scan')">📷</button>
                 </div>
             </div>
@@ -356,7 +356,7 @@
             <p style="color: #666; margin-bottom: 15px; line-height: 1.5; font-size: 14px;">Scan your Staff ID to authorize this reprint.</p>
             <div class="input-row" style="margin-left: 0; width: 100%; margin-bottom: 20px;">
                 <div class="input-wrapper">
-                    <input type="text" id="reprint-auth-input" placeholder="Scan Badge..." onkeydown="handleReprintAuthEnter(event)" style="width: 100%; box-sizing: border-box;" autocomplete="off" inputmode="none">
+                    <input type="text" id="reprint-auth-input" placeholder="Scan Badge..." onkeydown="handleReprintAuthEnter(event)" style="width: 100%; box-sizing: border-box;" autocomplete="off">
                 </div>
                 <button class="cam-btn" onclick="openCamera('reprint-auth-input')">📷</button>
             </div>
@@ -753,7 +753,8 @@
 
       function enforceScannerOnly(e, inputId) {
           if (e.key === 'Enter') { clearTimeout(scannerTimer); const boxId = inputId === 'counter-1' ? 'c1-suggestions' : 'c2-suggestions'; handleKeyNavigation(e, boxId); return; }
-          clearTimeout(scannerTimer); scannerTimer = setTimeout(() => { document.getElementById(inputId).value = ""; playErrorSound(); }, 200); 
+          // ALLOW PDA TYPING WITH 500MS TIMER
+          clearTimeout(scannerTimer); scannerTimer = setTimeout(() => { document.getElementById(inputId).value = ""; playErrorSound(); }, 500); 
       }
 
       function selectStaff(staffName, inputId) {
@@ -870,7 +871,6 @@
           timerText.innerText = "Securing official Box Number from Google...";
 
           try {
-              // Only waits for Google to safely assign the Box # (Usually 1-2 sec)
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
               playSuccessSubmitSound(); 
               
@@ -892,17 +892,17 @@
                   JsBarcode("#print-box-barcode", "BOX-" + response.boxNumber, { format: "CODE128", width: 1.5, height: 40, displayValue: true, fontSize: 12, margin: 0 }); 
               } catch(e) {}
 
-              // Zero delay: prints exactly as the barcode finishes drawing
-              window.print();
-              
-              document.getElementById('print-section').style.display = 'none';
+              setTimeout(() => {
+                  window.print();
+                  document.getElementById('print-section').style.display = 'none';
 
-              document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
-              
-              btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; 
-              timerText.innerText = "";
-              
-              setTimeout(() => document.getElementById('sku-search').focus(), 10);
+                  document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
+                  
+                  btnPrint.innerText = "Print"; btnPrint.disabled = false; btnReentry.disabled = false; 
+                  timerText.innerText = "";
+                  
+                  setTimeout(() => document.getElementById('sku-search').focus(), 10);
+              }, 100);
 
           } catch(e) {
               showToast("Failed to save entry.", "error");
@@ -1021,8 +1021,9 @@
               }
               return;
           }
+          // ALLOW PDA TYPING WITH 500MS TIMER
           clearTimeout(opsScannerTimer);
-          opsScannerTimer = setTimeout(() => { document.getElementById('reprint-auth-input').value = ""; }, 200);
+          opsScannerTimer = setTimeout(() => { document.getElementById('reprint-auth-input').value = ""; }, 500);
       }
 
       function executeReprintLabel() {
@@ -1093,8 +1094,9 @@
               }
               return;
           }
+          // ALLOW PDA TYPING WITH 500MS TIMER
           clearTimeout(opsScannerTimer);
-          opsScannerTimer = setTimeout(() => { document.getElementById('ops-passkey').value = ""; }, 200);
+          opsScannerTimer = setTimeout(() => { document.getElementById('ops-passkey').value = ""; }, 500);
       }
 
       async function switchToReceiveMain() {
@@ -1152,8 +1154,9 @@
               if (val) processBoxReceiveOptimistic(val);
               return;
           }
+          // ALLOW PDA TYPING WITH 500MS TIMER
           clearTimeout(receiveScannerTimer);
-          receiveScannerTimer = setTimeout(() => { document.getElementById('receive-box-scan').value = ""; }, 200);
+          receiveScannerTimer = setTimeout(() => { document.getElementById('receive-box-scan').value = ""; }, 500);
       }
 
       // --- ULTRA FAST OPTIMISTIC RECEIVING ENGINE ---
