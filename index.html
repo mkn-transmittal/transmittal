@@ -140,10 +140,8 @@
       .btn-print { background: #4CAF50; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-reentry { background: #ff9800; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-error { background: #F44336; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 15px; }
-      .timer-text { font-size: 14px; color: #777; margin-top: 15px; font-weight: bold;}
-      #error-message { color: red; margin-top: 10px; display: none; font-weight: bold; }
 
-      /* --- RESPONSIVE MOBILE LAYOUT --- */
+      /* --- RESPONSIVE MOBILE LAYOUT FIX --- */
       .responsive-filter-bar {
         display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; 
         background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;
@@ -206,13 +204,10 @@
 
         <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; border: 2px solid #2196F3; margin-bottom: 20px; text-align: left;">
             <label style="margin: 0 0 5px 0; font-size: 12px; color: #1976D2; font-weight: bold;">🎯 ACTIVE REQUEST ID</label>
-            <select id="scanner-request-dropdown" onchange="handleScannerRequestChange()" style="margin: 0; width: 100%; padding: 10px; font-weight: bold; border: 1px solid #90caf9; border-radius: 4px;">
-                <option value="">Loading...</option>
-            </select>
-            
-            <div id="new-req-wrapper" style="display:none; margin-top: 10px; align-items: center; gap: 8px;">
-                <input type="text" id="scanner-new-request-name" placeholder="Type new ID..." style="margin:0; flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
-                <button onclick="confirmNewScannerRequest()" style="margin:0; width: auto; padding: 10px 15px; font-size: 14px; background: #2196F3; color: white;">Set</button>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="scanner-request-input" list="scanner-req-list" placeholder="Search or Type new ID..." style="margin: 0; flex: 1; padding: 10px; font-weight: bold; border: 1px solid #90caf9; border-radius: 4px;" autocomplete="off">
+                <datalist id="scanner-req-list"></datalist>
+                <button onclick="confirmScannerRequest()" class="blue-btn" style="margin:0; width: auto; padding: 10px 20px; height: 42px;">Lock</button>
             </div>
         </div>
 
@@ -274,9 +269,8 @@
         <div class="responsive-filter-bar">
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666; font-weight:bold;">1. Select Request ID</label>
-                <select id="receive-request-dropdown" onchange="loadReceiveDashboardData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;">
-                    <option value="">Loading...</option>
-                </select>
+                <input type="text" id="receive-request-input" list="receive-req-list" placeholder="Search Request ID..." onchange="loadReceiveDashboardData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;" autocomplete="off">
+                <datalist id="receive-req-list"></datalist>
             </div>
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #2196F3; font-weight:bold;">2. Scan Box # Barcode to Receive</label>
@@ -315,9 +309,8 @@
         <div class="responsive-filter-bar">
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666;">Request ID</label>
-                <select id="dashboard-request-dropdown" onchange="loadDashboardData()" style="margin:0; width: 100%; padding: 8px;">
-                    <option value="">Loading...</option>
-                </select>
+                <input type="text" id="dashboard-request-input" list="dashboard-req-list" placeholder="All Requests..." onchange="loadDashboardData()" style="margin:0; width: 100%; padding: 8px;" autocomplete="off">
+                <datalist id="dashboard-req-list"></datalist>
             </div>
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666;">Filter by Date</label>
@@ -484,16 +477,12 @@
               { facingMode: "environment" }, 
               { fps: 10, qrbox: { width: 250, height: 250 } },
               (decodedText) => {
-                  
                   if (decodedText === lastScannedText && (Date.now() - lastScanTime < 2000)) return;
                   lastScannedText = decodedText;
                   lastScanTime = Date.now();
-
                   processCameraScan(decodedText);
                   
-                  if (currentTargetInput !== 'receive-box-scan') {
-                      closeCamera();
-                  }
+                  if (currentTargetInput !== 'receive-box-scan') closeCamera();
               },
               (errorMessage) => { }
           ).catch((err) => {
@@ -541,7 +530,6 @@
           document.getElementById('receive-dashboard-section').style.display = 'none';
       }
 
-      // --- 🚨 FIXED PAGE LOAD LOGIC TO PREVENT WHITE SCREEN ---
       window.addEventListener('DOMContentLoaded', async () => {
           try {
               const savedSheet = sessionStorage.getItem("activeSheetName");
@@ -558,12 +546,11 @@
                   if (savedOps) activeOpsName = savedOps;
 
                   loadMasterData(); 
-                  // WAIT for Request IDs to finish loading before trying to select one
                   await loadRequestIds();
 
-                  if (savedReq) {
+                  if (savedReq && savedReq !== "undefined") {
                       activeRequestId = savedReq;
-                      document.getElementById('scanner-request-dropdown').value = activeRequestId;
+                      document.getElementById('scanner-request-input').value = activeRequestId;
                       unlockScannerInputs();
                   } else {
                       lockScannerInputs();
@@ -672,7 +659,7 @@
           activeSheetName = ""; accessLevel = ""; activeRequestId = ""; activeOpsName = "";
           masterSkuData = []; masterStaffData = []; masterOpsData = [];
           document.getElementById('admin-password').value = ""; document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
-          document.getElementById('scanner-request-dropdown').value = "";
+          document.getElementById('scanner-request-input').value = "";
           
           hideAllSections();
           closeAllModals();
@@ -733,7 +720,6 @@
               document.getElementById('db-target-name').innerText = activeSheetName;
               
               loadMasterData(); 
-              // WAIT for Request IDs to finish loading
               await loadRequestIds();
               lockScannerInputs(); 
               
@@ -742,53 +728,45 @@
         } catch(e) { hideToast(); document.getElementById('btn-login').disabled = false; showToast("Server Error", "error"); }
       }
 
-      // --- REQUEST ID DROPDOWN LOGIC (IN-SCANNER) ---
+      // --- NEW SEARCHABLE REQUEST ID LOGIC ---
       async function loadRequestIds() {
         try {
             const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
-            const dropdown = document.getElementById('scanner-request-dropdown');
-            dropdown.innerHTML = '<option value="" disabled selected>Select Request ID to start...</option>';
-            requests.forEach(r => { dropdown.innerHTML += `<option value="${r}">${r}</option>`; });
-            dropdown.innerHTML += '<option value="CREATE_NEW">+ Create New Request ID</option>';
-
-            if (activeRequestId) {
-                let exists = Array.from(dropdown.options).some(opt => opt.value === activeRequestId);
-                if(!exists) dropdown.innerHTML += `<option value="${activeRequestId}">${activeRequestId}</option>`;
-                dropdown.value = activeRequestId;
-            }
+            const scannerList = document.getElementById('scanner-req-list');
+            const receiveList = document.getElementById('receive-req-list');
+            const dashboardList = document.getElementById('dashboard-req-list');
+            
+            scannerList.innerHTML = ''; receiveList.innerHTML = ''; dashboardList.innerHTML = '';
+            
+            requests.forEach(r => { 
+                // CRITICAL: Block "undefined" strings from rendering
+                if (r && r !== "undefined" && r.trim() !== "") {
+                    const opt = `<option value="${r}">`;
+                    scannerList.innerHTML += opt;
+                    receiveList.innerHTML += opt;
+                    dashboardList.innerHTML += opt;
+                }
+            });
         } catch(e) { showToast("Failed to load Request IDs", "error"); }
       }
 
-      function handleScannerRequestChange() {
-          const dropdown = document.getElementById('scanner-request-dropdown');
-          const val = dropdown.value;
-          
-          if (val === 'CREATE_NEW') {
-              document.getElementById('new-req-wrapper').style.display = 'flex';
-              lockScannerInputs();
-              setTimeout(() => document.getElementById('scanner-new-request-name').focus(), 50);
-          } else if (val) {
-              document.getElementById('new-req-wrapper').style.display = 'none';
-              activeRequestId = val;
-              sessionStorage.setItem("activeRequestId", activeRequestId);
-              unlockScannerInputs();
-              playScanSound();
-              showToast("Target Locked: " + activeRequestId, "success");
-          }
-      }
-
-      function confirmNewScannerRequest() {
-          const val = document.getElementById('scanner-new-request-name').value.trim();
-          if(!val) return triggerErrorModal("Please type a new Request ID", "scanner-new-request-name");
+      function confirmScannerRequest() {
+          const val = document.getElementById('scanner-request-input').value.trim();
+          if(!val || val === "undefined") return triggerErrorModal("Please type or select a valid Request ID.", "scanner-request-input");
           
           activeRequestId = val;
           sessionStorage.setItem("activeRequestId", activeRequestId);
           
-          const dropdown = document.getElementById('scanner-request-dropdown');
-          dropdown.innerHTML += `<option value="${val}">${val}</option>`;
-          dropdown.value = val;
-          
-          document.getElementById('new-req-wrapper').style.display = 'none';
+          // Add to lists dynamically if it's completely new
+          const scannerList = document.getElementById('scanner-req-list');
+          const exists = Array.from(scannerList.options).some(opt => opt.value === val);
+          if(!exists) {
+              const opt = `<option value="${val}">`;
+              scannerList.innerHTML += opt;
+              document.getElementById('receive-req-list').innerHTML += opt;
+              document.getElementById('dashboard-req-list').innerHTML += opt;
+          }
+
           unlockScannerInputs();
           playScanSound();
           showToast("Target Locked: " + activeRequestId, "success");
@@ -932,7 +910,6 @@
         document.getElementById('success-modal').style.display = 'flex';
       }
 
-      // --- INSTANT PRINT UPON CLICKING "PRINT" ---
       async function actionPrint() {
           const btnPrint = document.getElementById('btn-confirm-print');
           if (btnPrint.disabled) return; 
@@ -1001,9 +978,11 @@
           
           try {
               const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
-              const dropdown = document.getElementById('dashboard-request-dropdown');
-              dropdown.innerHTML = '<option value="ALL" selected>Show All Requests</option>';
-              requests.forEach(r => { dropdown.innerHTML += `<option value="${r}">${r}</option>`; });
+              const datalist = document.getElementById('dashboard-req-list');
+              datalist.innerHTML = '';
+              requests.forEach(r => { 
+                  if (r && r !== "undefined" && r.trim() !== "") datalist.innerHTML += `<option value="${r}">`; 
+              });
               loadDashboardData();
           } catch(e) { showToast("Failed to load dropdown", "error"); }
       }
@@ -1013,7 +992,8 @@
           hideAllSections(); 
           document.getElementById('scanner-section').style.display = 'block';
           
-          if(activeRequestId) {
+          if(activeRequestId && activeRequestId !== "undefined") {
+              document.getElementById('scanner-request-input').value = activeRequestId;
               unlockScannerInputs();
               setTimeout(() => document.getElementById('sku-search').focus(), 10);
           } else {
@@ -1022,7 +1002,8 @@
       }
 
       async function loadDashboardData() {
-          const reqId = document.getElementById('dashboard-request-dropdown').value;
+          const reqInput = document.getElementById('dashboard-request-input').value.trim();
+          const reqId = reqInput === "" ? "ALL" : reqInput;
           showToast("Loading Logs...", "loading");
 
           try {
@@ -1039,7 +1020,8 @@
           tbody.innerHTML = '';
           if (currentDashboardLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #777;">No boxes logged yet.</td></tr>'; return; }
 
-          let filteredLogs = [...currentDashboardLogs].reverse();
+          // CRITICAL: Block "undefined" records entirely from the display
+          let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId !== "undefined");
 
           if (dateFilter || searchFilter) {
               filteredLogs = filteredLogs.filter(log => {
@@ -1198,15 +1180,17 @@
 
           try {
               const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
-              const dropdown = document.getElementById('receive-request-dropdown');
-              dropdown.innerHTML = '<option value="" disabled selected>Select Request ID...</option>';
-              requests.forEach(r => { dropdown.innerHTML += `<option value="${r}">${r}</option>`; });
+              const datalist = document.getElementById('receive-req-list');
+              datalist.innerHTML = '';
+              requests.forEach(r => { 
+                  if (r && r !== "undefined" && r.trim() !== "") datalist.innerHTML += `<option value="${r}">`; 
+              });
           } catch(e) { showToast("Failed to load Request IDs", "error"); }
       }
 
       async function loadReceiveDashboardData() {
-          const reqId = document.getElementById('receive-request-dropdown').value;
-          if(!reqId) return;
+          const reqId = document.getElementById('receive-request-input').value.trim();
+          if(!reqId || reqId === "undefined") return;
 
           showToast("Loading Checklist...", "loading");
           try {
@@ -1218,9 +1202,12 @@
 
       function renderReceiveChecklist() {
           const tbody = document.getElementById('receive-table-body'); tbody.innerHTML = '';
-          if (currentDashboardLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">No boxes found for this request.</td></tr>'; return; }
+          
+          let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId !== "undefined");
+          
+          if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">No boxes found for this request.</td></tr>'; return; }
 
-          [...currentDashboardLogs].reverse().forEach(log => {
+          filteredLogs.forEach(log => {
               let counters = log.c2 ? `${log.c1} / ${log.c2}` : log.c1;
               let receiveStatus = log.receiveBy ? `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${log.receiveBy}</span>` : `<span style="color: #F44336; font-weight:bold;">🔴 Pending</span>`;
               let rowStyle = log.receiveBy ? "background-color: #f1f8e9;" : ""; 
@@ -1255,10 +1242,9 @@
           let boxNum = scannedVal.replace(/^BOX-/i, "").trim();
           if(!boxNum || isNaN(boxNum)) { playErrorSound(); return showToast("Invalid Box Barcode Scanned", "error"); }
 
-          const reqId = document.getElementById('receive-request-dropdown').value;
+          const reqId = document.getElementById('receive-request-input').value.trim();
           if(!reqId) { playErrorSound(); return showToast("Please select a Request ID first!", "error"); }
 
-          // 1. Check local memory first for instant duplicate blocking
           const targetLog = currentDashboardLogs.find(l => String(l.boxNum) === String(boxNum));
           if (targetLog && targetLog.receiveBy) {
               playAlarmSound();
@@ -1270,7 +1256,6 @@
               }
           }
 
-          // 2. OPTIMISTIC UI UPDATE: Instantly turn row green before server responds!
           if (targetLog) {
               targetLog.receiveBy = activeOpsName;
               const statusCell = document.getElementById(`box-status-${boxNum}`);
@@ -1281,15 +1266,13 @@
           playSuccessReceiveSound();
           showToast(`Box #${boxNum} Received!`, "success");
 
-          // Keep focus locked on input for continuous rapid-fire scanning
           setTimeout(() => document.getElementById('receive-box-scan').focus(), 10);
 
-          // 3. Background server sync
           try {
               const res = await apiCall('receiveBox', { sheetName: activeSheetName, requestId: reqId, boxNum: boxNum, opsName: activeOpsName });
               if (res.error === "ALREADY_RECEIVED") {
                   playAlarmSound();
-                  loadReceiveDashboardData(); // Re-sync if someone else scanned it simultaneously
+                  loadReceiveDashboardData(); 
                   
                   if (document.getElementById('camera-modal').style.display === 'flex') {
                       showToast(`ALREADY RECEIVED: Box #${boxNum}`, "error");
