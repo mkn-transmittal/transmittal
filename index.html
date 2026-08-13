@@ -140,8 +140,10 @@
       .btn-print { background: #4CAF50; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-reentry { background: #ff9800; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-error { background: #F44336; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 15px; }
+      .timer-text { font-size: 14px; color: #777; margin-top: 15px; font-weight: bold;}
+      #error-message { color: red; margin-top: 10px; display: none; font-weight: bold; }
 
-      /* --- RESPONSIVE MOBILE LAYOUT FIX --- */
+      /* --- RESPONSIVE MOBILE LAYOUT --- */
       .responsive-filter-bar {
         display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; 
         background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;
@@ -535,35 +537,43 @@
           document.getElementById('admin-gate').style.display = 'none'; 
           document.getElementById('scanner-section').style.display = 'none';
           document.getElementById('dashboard-section').style.display = 'none';
-          document.getElementById('purpose-section').style.display = 'none';
           document.getElementById('receive-login-section').style.display = 'none';
           document.getElementById('receive-dashboard-section').style.display = 'none';
       }
 
-      window.addEventListener('DOMContentLoaded', () => {
-          const savedSheet = sessionStorage.getItem("activeSheetName");
-          const savedLevel = sessionStorage.getItem("accessLevel");
-          const savedReq = sessionStorage.getItem("activeRequestId");
-          const savedOps = sessionStorage.getItem("activeOpsName");
+      // --- 🚨 FIXED PAGE LOAD LOGIC TO PREVENT WHITE SCREEN ---
+      window.addEventListener('DOMContentLoaded', async () => {
+          try {
+              const savedSheet = sessionStorage.getItem("activeSheetName");
+              const savedLevel = sessionStorage.getItem("accessLevel");
+              const savedReq = sessionStorage.getItem("activeRequestId");
+              const savedOps = sessionStorage.getItem("activeOpsName");
 
-          if (savedSheet && savedLevel) {
-              activeSheetName = savedSheet; accessLevel = savedLevel;
-              hideAllSections(); 
-              document.getElementById('db-target-name').innerText = activeSheetName;
+              if (savedSheet && savedLevel) {
+                  activeSheetName = savedSheet; accessLevel = savedLevel;
+                  hideAllSections(); 
+                  document.getElementById('scanner-section').style.display = 'block'; 
+                  document.getElementById('db-target-name').innerText = activeSheetName;
 
-              if (savedOps) activeOpsName = savedOps;
+                  if (savedOps) activeOpsName = savedOps;
 
-              document.getElementById('scanner-section').style.display = 'block';
-              loadMasterData(); 
-              loadRequestIds();
+                  loadMasterData(); 
+                  // WAIT for Request IDs to finish loading before trying to select one
+                  await loadRequestIds();
 
-              if (savedReq) {
-                  activeRequestId = savedReq;
-                  document.getElementById('scanner-request-dropdown').value = activeRequestId;
-                  unlockScannerInputs();
-              } else {
-                  lockScannerInputs();
+                  if (savedReq) {
+                      activeRequestId = savedReq;
+                      document.getElementById('scanner-request-dropdown').value = activeRequestId;
+                      unlockScannerInputs();
+                  } else {
+                      lockScannerInputs();
+                  }
               }
+          } catch (err) {
+              console.error(err);
+              hideAllSections();
+              document.getElementById('admin-gate').style.display = 'block';
+              showToast("Startup error fixed. Please log in again.", "error");
           }
       });
 
@@ -723,7 +733,8 @@
               document.getElementById('db-target-name').innerText = activeSheetName;
               
               loadMasterData(); 
-              loadRequestIds();
+              // WAIT for Request IDs to finish loading
+              await loadRequestIds();
               lockScannerInputs(); 
               
               apiCall('getOpsTeam').then(ops => masterOpsData = ops).catch(e => console.log(e));
@@ -951,14 +962,12 @@
 
               document.getElementById('print-section').style.display = 'flex'; 
               try { 
-                  // SKU Linear Barcode
                   JsBarcode("#print-barcode", pendingPayload.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); 
                   
-                  // NEW: Box # QR CODE GENERATOR
-                  document.getElementById("print-box-qr").innerHTML = ""; // Clear old QR
+                  document.getElementById("print-box-qr").innerHTML = ""; 
                   new QRCode(document.getElementById("print-box-qr"), {
                       text: "BOX-" + response.boxNumber,
-                      width: 64, // perfectly sized for the corner of the thermal label
+                      width: 64,
                       height: 64,
                       colorDark : "#000000",
                       colorLight : "#ffffff",
@@ -1108,10 +1117,8 @@
 
           document.getElementById('print-section').style.display = 'flex';
           try { 
-              // SKU Linear Barcode
               JsBarcode("#print-barcode", data.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); 
               
-              // NEW: Reprint Box # QR CODE
               document.getElementById("print-box-qr").innerHTML = ""; 
               new QRCode(document.getElementById("print-box-qr"), {
                   text: "BOX-" + data.boxNum,
@@ -1251,7 +1258,7 @@
           const reqId = document.getElementById('receive-request-dropdown').value;
           if(!reqId) { playErrorSound(); return showToast("Please select a Request ID first!", "error"); }
 
-          // 1. Check local memory first for instant duplicate blocking (Zero server lag)
+          // 1. Check local memory first for instant duplicate blocking
           const targetLog = currentDashboardLogs.find(l => String(l.boxNum) === String(boxNum));
           if (targetLog && targetLog.receiveBy) {
               playAlarmSound();
@@ -1277,7 +1284,7 @@
           // Keep focus locked on input for continuous rapid-fire scanning
           setTimeout(() => document.getElementById('receive-box-scan').focus(), 10);
 
-          // 3. Background server sync (happens silently without slowing down the operator)
+          // 3. Background server sync
           try {
               const res = await apiCall('receiveBox', { sheetName: activeSheetName, requestId: reqId, boxNum: boxNum, opsName: activeOpsName });
               if (res.error === "ALREADY_RECEIVED") {
