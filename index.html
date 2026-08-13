@@ -205,7 +205,7 @@
         <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; border: 2px solid #2196F3; margin-bottom: 20px; text-align: left;">
             <label style="margin: 0 0 5px 0; font-size: 12px; color: #1976D2; font-weight: bold;">🎯 ACTIVE REQUEST ID</label>
             <div style="display: flex; gap: 8px; align-items: center;">
-                <input type="text" id="scanner-request-input" list="scanner-req-list" placeholder="Search or Type new ID..." style="margin: 0; flex: 1; padding: 10px; font-weight: bold; border: 1px solid #90caf9; border-radius: 4px;" autocomplete="off">
+                <input type="text" id="scanner-request-input" list="scanner-req-list" placeholder="Search or Type new ID..." onkeydown="if(event.key === 'Enter') confirmScannerRequest()" style="margin: 0; flex: 1; padding: 10px; font-weight: bold; border: 1px solid #90caf9; border-radius: 4px;" autocomplete="off">
                 <datalist id="scanner-req-list"></datalist>
                 <button onclick="confirmScannerRequest()" class="blue-btn" style="margin:0; width: auto; padding: 10px 20px; height: 42px;">Lock</button>
             </div>
@@ -269,7 +269,7 @@
         <div class="responsive-filter-bar">
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666; font-weight:bold;">1. Select Request ID</label>
-                <input type="text" id="receive-request-input" list="receive-req-list" placeholder="Search Request ID..." onchange="loadReceiveDashboardData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;" autocomplete="off">
+                <input type="text" id="receive-request-input" list="receive-req-list" placeholder="Search Request ID..." onchange="loadReceiveDashboardData()" onkeydown="if(event.key === 'Enter') loadReceiveDashboardData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;" autocomplete="off">
                 <datalist id="receive-req-list"></datalist>
             </div>
             <div class="responsive-filter-item">
@@ -309,7 +309,7 @@
         <div class="responsive-filter-bar">
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666;">Request ID</label>
-                <input type="text" id="dashboard-request-input" list="dashboard-req-list" placeholder="All Requests..." onchange="loadDashboardData()" style="margin:0; width: 100%; padding: 8px;" autocomplete="off">
+                <input type="text" id="dashboard-request-input" list="dashboard-req-list" placeholder="All Requests..." onchange="loadDashboardData()" onkeydown="if(event.key === 'Enter') loadDashboardData()" style="margin:0; width: 100%; padding: 8px;" autocomplete="off">
                 <datalist id="dashboard-req-list"></datalist>
             </div>
             <div class="responsive-filter-item">
@@ -477,12 +477,16 @@
               { facingMode: "environment" }, 
               { fps: 10, qrbox: { width: 250, height: 250 } },
               (decodedText) => {
+                  
                   if (decodedText === lastScannedText && (Date.now() - lastScanTime < 2000)) return;
                   lastScannedText = decodedText;
                   lastScanTime = Date.now();
+
                   processCameraScan(decodedText);
                   
-                  if (currentTargetInput !== 'receive-box-scan') closeCamera();
+                  if (currentTargetInput !== 'receive-box-scan') {
+                      closeCamera();
+                  }
               },
               (errorMessage) => { }
           ).catch((err) => {
@@ -739,7 +743,6 @@
             scannerList.innerHTML = ''; receiveList.innerHTML = ''; dashboardList.innerHTML = '';
             
             requests.forEach(r => { 
-                // CRITICAL: Block "undefined" strings from rendering
                 if (r && r !== "undefined" && r.trim() !== "") {
                     const opt = `<option value="${r}">`;
                     scannerList.innerHTML += opt;
@@ -757,7 +760,6 @@
           activeRequestId = val;
           sessionStorage.setItem("activeRequestId", activeRequestId);
           
-          // Add to lists dynamically if it's completely new
           const scannerList = document.getElementById('scanner-req-list');
           const exists = Array.from(scannerList.options).some(opt => opt.value === val);
           if(!exists) {
@@ -1020,7 +1022,6 @@
           tbody.innerHTML = '';
           if (currentDashboardLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #777;">No boxes logged yet.</td></tr>'; return; }
 
-          // CRITICAL: Block "undefined" records entirely from the display
           let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId !== "undefined");
 
           if (dateFilter || searchFilter) {
