@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>[MKN] Transmittal</title>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     
     <style>
@@ -423,7 +424,7 @@
                 <span id="print-box" style="font-size: 26px; font-weight: bold; margin-top: 4px;">Box #0</span>
             </div>
             <div style="text-align: right;">
-                <svg id="print-box-barcode"></svg>
+                <div id="print-box-qr"></div>
             </div>
         </div>
         <div id="print-request" style="font-size: 16px; font-weight: bold; color: #333; text-align: center; width: 100%; margin-top: 6px;">Request ID: </div>
@@ -534,7 +535,7 @@
           document.getElementById('admin-gate').style.display = 'none'; 
           document.getElementById('scanner-section').style.display = 'none';
           document.getElementById('dashboard-section').style.display = 'none';
-          // Completely removed reference to purpose-section here to prevent crashes!
+          document.getElementById('purpose-section').style.display = 'none';
           document.getElementById('receive-login-section').style.display = 'none';
           document.getElementById('receive-dashboard-section').style.display = 'none';
       }
@@ -552,14 +553,12 @@
 
               if (savedOps) activeOpsName = savedOps;
 
-              // Force the app to open the scanner section immediately
               document.getElementById('scanner-section').style.display = 'block';
               loadMasterData(); 
               loadRequestIds();
 
               if (savedReq) {
                   activeRequestId = savedReq;
-                  // Auto-select the dropdown to match the saved active Request ID
                   document.getElementById('scanner-request-dropdown').value = activeRequestId;
                   unlockScannerInputs();
               } else {
@@ -720,14 +719,12 @@
               sessionStorage.setItem("activeSheetName", activeSheetName); sessionStorage.setItem("accessLevel", accessLevel);
               
               hideAllSections();
-              
-              // Show Scanner page instead of the old deleted Purpose page!
               document.getElementById('scanner-section').style.display = 'block'; 
               document.getElementById('db-target-name').innerText = activeSheetName;
               
               loadMasterData(); 
               loadRequestIds();
-              lockScannerInputs(); // Lock fields until they select a Request ID
+              lockScannerInputs(); 
               
               apiCall('getOpsTeam').then(ops => masterOpsData = ops).catch(e => console.log(e));
             } else { errorMsg.style.display = 'block'; playErrorSound(); }
@@ -954,8 +951,19 @@
 
               document.getElementById('print-section').style.display = 'flex'; 
               try { 
+                  // SKU Linear Barcode
                   JsBarcode("#print-barcode", pendingPayload.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); 
-                  JsBarcode("#print-box-barcode", "BOX-" + response.boxNumber, { format: "CODE128", width: 1.5, height: 40, displayValue: true, fontSize: 12, margin: 0 }); 
+                  
+                  // NEW: Box # QR CODE GENERATOR
+                  document.getElementById("print-box-qr").innerHTML = ""; // Clear old QR
+                  new QRCode(document.getElementById("print-box-qr"), {
+                      text: "BOX-" + response.boxNumber,
+                      width: 64, // perfectly sized for the corner of the thermal label
+                      height: 64,
+                      colorDark : "#000000",
+                      colorLight : "#ffffff",
+                      correctLevel : QRCode.CorrectLevel.M
+                  });
               } catch(e) {}
 
               setTimeout(() => {
@@ -1100,8 +1108,19 @@
 
           document.getElementById('print-section').style.display = 'flex';
           try { 
+              // SKU Linear Barcode
               JsBarcode("#print-barcode", data.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); 
-              JsBarcode("#print-box-barcode", "BOX-" + data.boxNum, { format: "CODE128", width: 1.5, height: 40, displayValue: true, fontSize: 12, margin: 0 }); 
+              
+              // NEW: Reprint Box # QR CODE
+              document.getElementById("print-box-qr").innerHTML = ""; 
+              new QRCode(document.getElementById("print-box-qr"), {
+                  text: "BOX-" + data.boxNum,
+                  width: 64,
+                  height: 64,
+                  colorDark : "#000000",
+                  colorLight : "#ffffff",
+                  correctLevel : QRCode.CorrectLevel.M
+              });
           } catch(e) {}
 
           setTimeout(() => {
