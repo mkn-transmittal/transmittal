@@ -1186,17 +1186,31 @@
                   if(items.length === 0) return showToast("No valid SKUs/Quantities found in Excel.", "error");
                   
                   showToast("Uploading data...", "loading");
-                  await apiCall('savePickRequest', { requestId: reqId, items: items });
-                  showToast("Pick Request Created Successfully!", "success");
                   
-                  document.getElementById('replenish-request-id').value = "";
-                  fileInput.value = "";
-                  
-                  // Reload global lists so the new ID appears immediately
-                  loadRequestIds();
-                  loadPickRequestDropdown();
+                  // --- NEW: SECURE ERROR HANDLING ---
+                  try {
+                      await apiCall('savePickRequest', { requestId: reqId, items: items });
+                      hideToast();
+                      showToast("Pick Request Created Successfully!", "success");
+                      
+                      document.getElementById('replenish-request-id').value = "";
+                      fileInput.value = "";
+                      
+                      // Reload global lists so the new ID appears immediately
+                      loadRequestIds();
+                      loadPickRequestDropdown();
+                  } catch (apiErr) {
+                      hideToast();
+                      // Catch the duplicate error and trigger the massive red error screen
+                      if (apiErr.message.includes("DUPLICATE_REQUEST_ID")) {
+                          triggerErrorModal("This Request ID already exists! Please use a unique ID.", "replenish-request-id");
+                      } else {
+                          triggerErrorModal("Failed to save Pick Request. Please try again.", "replenish-request-id");
+                      }
+                  }
                   
               } catch(err) {
+                  hideToast();
                   showToast("Error parsing Excel file.", "error");
               }
           };
