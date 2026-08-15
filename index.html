@@ -285,6 +285,7 @@
     </div>
 
     <!-- NEW: PICK REQUEST DASHBOARD -->
+    <!-- NEW: PICK REQUEST DASHBOARD -->
     <div class="dashboard-wrapper" id="pick-request-section" style="border-top: 5px solid #ff9800;">
         <div class="nav-bar" style="margin-bottom: 10px;">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -294,10 +295,12 @@
         <div class="responsive-filter-bar">
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666; font-weight:bold;">1. Select Request ID</label>
-                <input type="text" id="pick-request-input" list="pick-req-list" placeholder="Search Request ID..." onchange="loadPickRequestData()" onkeydown="if(event.key === 'Enter') loadPickRequestData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc;" autocomplete="off">
-                <datalist id="pick-req-list"></datalist>
+                <!-- UPDATED: Now a strict Dropdown Menu instead of a typing box -->
+                <select id="pick-request-input" onchange="loadPickRequestData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc; border-radius: 4px; background: white;">
+                    <option value="" disabled selected>Loading Request IDs...</option>
+                </select>
             </div>
-            <button onclick="loadPickRequestData()" class="orange-btn responsive-filter-btn" style="height: 42px;">🔄 Load List</button>
+            <button onclick="loadPickRequestData()" class="orange-btn responsive-filter-btn" style="height: 42px;">🔄 Refresh List</button>
         </div>
 
         <div class="table-responsive">
@@ -1228,12 +1231,20 @@
       async function loadPickRequestDropdown() {
           try {
               const requests = await apiCall('getPickRequestIds');
-              const datalist = document.getElementById('pick-req-list');
-              datalist.innerHTML = '';
+              const selectList = document.getElementById('pick-request-input');
+              
+              // Clear current options and set the default prompt
+              selectList.innerHTML = '<option value="" disabled selected>Select a Request ID...</option>';
+              
               requests.forEach(r => { 
-                  if (r && r !== "undefined" && r.trim() !== "") datalist.innerHTML += `<option value="${r}">`; 
+                  if (r && r !== "undefined" && r.trim() !== "") {
+                      // Add real dropdown options
+                      selectList.innerHTML += `<option value="${r}">${r}</option>`; 
+                  }
               });
-          } catch(e) { showToast("Failed to load Pick Request IDs", "error"); }
+          } catch(e) { 
+              showToast("Failed to load Pick Request IDs", "error"); 
+          }
       }
 
       async function loadPickRequestData() {
