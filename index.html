@@ -148,6 +148,20 @@
       .btn-reentry { background: #ff9800; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; flex: 1; font-weight: bold; font-size: 15px; }
       .btn-error { background: #F44336; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 15px; }
 
+      /* --- ACTIVE PICKING UI --- */
+      .pick-info-card {
+        background: #f1f8e9; border: 2px solid #4CAF50; border-radius: 8px; padding: 15px; text-align: left; margin-bottom: 20px;
+      }
+      .pick-info-card h3 { margin: 0 0 5px 0; color: #2e7d32; font-size: 18px; }
+      .pick-info-card p { margin: 5px 0 0 0; color: #555; font-size: 15px; }
+      .pick-input-box {
+        width: 100%; padding: 15px; margin-bottom: 15px; font-size: 18px; font-weight: bold;
+        text-align: center; border: 3px solid #ccc; border-radius: 8px; box-sizing: border-box;
+      }
+      .pick-input-box.success { border-color: #4CAF50; background-color: #e8f5e9; }
+      .pick-input-box.error { border-color: #F44336; background-color: #ffebee; }
+      .pick-input-box:disabled { background-color: #f5f5f5; color: #999; }
+
       .responsive-filter-bar {
         display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; 
         background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;
@@ -257,7 +271,7 @@
         </div>
     </div>
 
-    <!-- NEW: REQUEST REPLENISH (EXCEL UPLOAD) -->
+    <!-- REQUEST REPLENISH (EXCEL UPLOAD) -->
     <div class="container" id="replenish-section" style="display: none; max-width: 500px; border: 4px solid #4CAF50;">
         <button class="menu-btn" onclick="toggleSidebar()" style="position:absolute; top: 15px; left: 15px;">☰</button>
         <h2 style="color: #4CAF50; margin-top: 30px;">📤 Request Replenish</h2>
@@ -284,8 +298,7 @@
         <button class="blue-btn" style="background-color: #4CAF50;" onclick="uploadReplenishFile()">Upload & Create Request</button>
     </div>
 
-    <!-- NEW: PICK REQUEST DASHBOARD -->
-    <!-- NEW: PICK REQUEST DASHBOARD -->
+    <!-- PICK REQUEST DASHBOARD -->
     <div class="dashboard-wrapper" id="pick-request-section" style="border-top: 5px solid #ff9800;">
         <div class="nav-bar" style="margin-bottom: 10px;">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -295,12 +308,13 @@
         <div class="responsive-filter-bar">
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #666; font-weight:bold;">1. Select Request ID</label>
-                <!-- UPDATED: Now a strict Dropdown Menu instead of a typing box -->
                 <select id="pick-request-input" onchange="loadPickRequestData()" style="margin:0; width: 100%; padding: 10px; font-weight:bold; border: 2px solid #ccc; border-radius: 4px; background: white;">
                     <option value="" disabled selected>Loading Request IDs...</option>
                 </select>
             </div>
             <button onclick="loadPickRequestData()" class="orange-btn responsive-filter-btn" style="height: 42px;">🔄 Refresh List</button>
+            <!-- NEW: Start Pick Button -->
+            <button onclick="initiatePickProcess()" id="start-pick-btn" class="blue-btn responsive-filter-btn" style="height: 42px; display: none; background-color: #4CAF50;">🛒 Start Picking</button>
         </div>
 
         <div class="table-responsive">
@@ -310,12 +324,41 @@
                         <th>Request ID</th>
                         <th>SKU Name</th>
                         <th>Target Qty</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody id="pick-request-table-body">
-                    <tr><td colspan="3" style="text-align: center; color: #777;">Select a Request ID above to view the pick list.</td></tr>
+                    <tr><td colspan="4" style="text-align: center; color: #777;">Select a Request ID above to view the pick list.</td></tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- ACTIVE PICKING WORKFLOW -->
+    <div class="container" id="active-picking-section" style="display: none; max-width: 500px; border: 4px solid #ff9800;">
+        <div class="nav-bar" style="margin-bottom: 15px; border-bottom: none; padding-bottom: 0;">
+            <h2 style="margin: 0; color: #ff9800; font-size: 22px;">📦 Active Picking</h2>
+            <span style="background: #fff3e0; color: #e65100; font-weight:bold; padding: 4px 10px; border-radius: 6px; font-size: 14px;" id="pick-req-id-display">REQ-000</span>
+        </div>
+        
+        <div style="font-size: 14px; font-weight: bold; background: #e3f2fd; color: #1976D2; padding: 6px; border-radius: 6px; margin-bottom: 15px;">
+            👤 Picker: <span id="pick-staff-display">Name</span>
+        </div>
+
+        <div class="pick-info-card">
+            <h3 id="pick-sku-name">SKU NAME</h3>
+            <p>🎯 Target Qty: <strong id="pick-target-qty" style="color: #1976D2;">0</strong> <span style="font-size: 13px; color: #777;">(Remaining: <span id="pick-rem-qty">0</span>)</span></p>
+            <p style="margin-top: 10px; font-size: 16px;">📍 Go to Location: <strong id="pick-loc-name" style="color: #D32F2F; font-size: 18px; background: #ffebee; padding: 2px 6px; border-radius: 4px;">LOC-A1</strong></p>
+            <p style="font-size: 13px; color: #777;">Available in Bin: <span id="pick-loc-avail">0</span></p>
+        </div>
+
+        <input type="text" id="pick-scan-barcode" class="pick-input-box" placeholder="1️⃣ Scan SKU Barcode..." onkeydown="handlePickBarcodeScan(event)" autocomplete="off">
+        <input type="text" id="pick-scan-loc" class="pick-input-box" placeholder="2️⃣ Scan Location Barcode..." onkeydown="handlePickLocationScan(event)" autocomplete="off" disabled>
+        <input type="number" id="pick-enter-qty" class="pick-input-box" placeholder="3️⃣ Enter Picked Qty..." onkeydown="handlePickQtyEnter(event)" autocomplete="off" disabled>
+        
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button onclick="skipCurrentPickLocation()" class="orange-btn" style="flex: 1; padding: 15px; font-size: 15px;" id="pick-skip-btn">⏭️ Skip Location</button>
+            <button onclick="cancelActivePicking()" class="btn-error" style="flex: 1; padding: 15px; font-size: 15px;">✖️ Cancel Pick</button>
         </div>
     </div>
 
@@ -419,6 +462,24 @@
                     <tr><td colspan="10" style="text-align: center; color: #777;">Loading logs...</td></tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- PICKER AUTHORIZATION MODAL -->
+    <div class="modal-overlay" id="picker-auth-modal">
+        <div class="modal-card">
+            <div class="modal-icon-success" style="color: #4CAF50;">🔐</div>
+            <div class="success-title" style="color: #333;">Start Picking</div>
+            <p style="color: #666; margin-bottom: 15px; line-height: 1.5; font-size: 14px;">Scan your Staff Badge to authorize and start the picking process.</p>
+            <div class="input-row" style="margin-left: 0; width: 100%; margin-bottom: 20px;">
+                <div class="input-wrapper">
+                    <input type="text" id="picker-auth-input" placeholder="Scan Badge..." onkeydown="handlePickerAuthEnter(event)" style="border: 2px solid #4CAF50; width: 100%; box-sizing: border-box;" autocomplete="off">
+                </div>
+                <button class="cam-btn" style="background-color: #4CAF50;" onclick="openCamera('picker-auth-input')">📷</button>
+            </div>
+            <div class="modal-btn-group">
+                <button class="btn-error" style="background-color: #9e9e9e;" onclick="closeAllModals()">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -564,13 +625,21 @@
       let lastLockedTarget = ""; 
       
       let currentDashboardLogs = []; 
+      
+      // --- DIRECTED PICKING GLOBAL VARIABLES ---
+      let globalPickListCache = [];
+      let currentPickSkuIndex = 0;
+      let currentPickLocIndex = 0;
+      let remainingTargetQty = 0;
+      let currentPickedLog = [];
+      let finalizedPickLogs = [];
+      let activePickerName = "";
 
       // --- GLOBAL BARCODE LISTENER FOR MAGIC PRINT ---
       let globalBarcodeBuffer = "";
       let globalBarcodeTimer;
 
       window.addEventListener('keydown', function(e) {
-          
           if (e.key.length === 1) {
               globalBarcodeBuffer += e.key;
               clearTimeout(globalBarcodeTimer);
@@ -582,22 +651,14 @@
               const isModalOpen = (successModal && successModal.style.display === 'flex');
               const btnPrint = document.getElementById('btn-confirm-print');
 
-              // MAGIC BARCODE TRIGGER: "PRINTER---1"
               if (globalBarcodeBuffer.toUpperCase() === "PRINTER---1" || globalBarcodeBuffer.toUpperCase() === "PRINT-NOW") {
-                  if (isModalOpen && btnPrint && !btnPrint.disabled) {
-                      e.preventDefault();
-                      actionPrint();
-                  }
-                  globalBarcodeBuffer = "";
-                  return;
+                  if (isModalOpen && btnPrint && !btnPrint.disabled) { e.preventDefault(); actionPrint(); }
+                  globalBarcodeBuffer = ""; return;
               }
 
-              // STANDARD ENTER KEY PRINT SHORTCUT
               if (isModalOpen && btnPrint && !btnPrint.disabled && document.activeElement !== btnPrint) {
-                  e.preventDefault();
-                  actionPrint();
+                  e.preventDefault(); actionPrint();
               }
-              
               globalBarcodeBuffer = "";
           }
       });
@@ -612,9 +673,7 @@
           currentTargetInput = inputId;
           document.getElementById('camera-modal').style.display = 'flex';
           
-          if (!html5QrCode) {
-              html5QrCode = new Html5Qrcode("reader");
-          }
+          if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
           
           html5QrCode.start(
               { facingMode: "environment" }, 
@@ -624,21 +683,17 @@
                   lastScannedText = decodedText;
                   lastScanTime = Date.now();
                   processCameraScan(decodedText);
-                  
                   if (currentTargetInput !== 'receive-box-scan') closeCamera();
               },
               (errorMessage) => { }
           ).catch((err) => {
-              showToast("Camera access denied or unavailable.", "error");
-              closeCamera();
+              showToast("Camera access denied or unavailable.", "error"); closeCamera();
           });
       }
 
       function closeCamera() {
           document.getElementById('camera-modal').style.display = 'none';
-          if (html5QrCode && html5QrCode.isScanning) {
-              html5QrCode.stop().catch(err => console.error(err));
-          }
+          if (html5QrCode && html5QrCode.isScanning) html5QrCode.stop().catch(err => console.error(err));
       }
 
       function processCameraScan(text) {
@@ -655,6 +710,9 @@
           else if (currentTargetInput === 'receive-box-scan') handleBoxReceiveScan(mockEvent);
           else if (currentTargetInput === 'reprint-auth-input') handleReprintAuthEnter(mockEvent);
           else if (currentTargetInput === 'void-auth-input') handleVoidAuthEnter(mockEvent);
+          else if (currentTargetInput === 'picker-auth-input') handlePickerAuthEnter(mockEvent);
+          else if (currentTargetInput === 'pick-scan-barcode') handlePickBarcodeScan(mockEvent);
+          else if (currentTargetInput === 'pick-scan-loc') handlePickLocationScan(mockEvent);
       }
 
       // --- MASTER MODAL CONTROLLER ---
@@ -664,6 +722,7 @@
           document.getElementById('reprint-auth-modal').style.display = 'none';
           document.getElementById('reprint-modal').style.display = 'none';
           document.getElementById('void-auth-modal').style.display = 'none';
+          document.getElementById('picker-auth-modal').style.display = 'none';
           document.getElementById('error-modal').style.display = 'none';
           closeCamera(); 
       }
@@ -674,9 +733,9 @@
           document.getElementById('dashboard-section').style.display = 'none';
           document.getElementById('receive-login-section').style.display = 'none';
           document.getElementById('receive-dashboard-section').style.display = 'none';
-          // NEW SECTIONS
           document.getElementById('replenish-section').style.display = 'none';
           document.getElementById('pick-request-section').style.display = 'none';
+          document.getElementById('active-picking-section').style.display = 'none';
       }
 
       window.addEventListener('DOMContentLoaded', async () => {
@@ -691,34 +750,25 @@
                   hideAllSections(); 
                   document.getElementById('scanner-section').style.display = 'block'; 
                   document.getElementById('db-target-name').innerText = activeSheetName;
-
                   if (savedOps) activeOpsName = savedOps;
 
-                  loadMasterData(); 
-                  await loadRequestIds();
+                  loadMasterData(); await loadRequestIds();
 
                   if (savedReq && savedReq !== "undefined") {
                       activeRequestId = savedReq;
                       document.getElementById('scanner-request-input').value = activeRequestId;
-                      lastLockedTarget = activeRequestId;
-                      unlockScannerInputs();
-                  } else {
-                      lockScannerInputs();
-                  }
+                      lastLockedTarget = activeRequestId; unlockScannerInputs();
+                  } else { lockScannerInputs(); }
               }
           } catch (err) {
-              console.error(err);
-              hideAllSections();
-              document.getElementById('admin-gate').style.display = 'block';
-              showToast("Startup error fixed. Please log in again.", "error");
+              hideAllSections(); document.getElementById('admin-gate').style.display = 'block';
           }
       });
 
       async function apiCall(action, payload = {}) {
           try {
               const response = await fetch(SCRIPT_URL, {
-                  method: 'POST',
-                  body: JSON.stringify({ action: action, ...payload })
+                  method: 'POST', body: JSON.stringify({ action: action, ...payload })
               });
               const result = await response.json();
               if(!result.success) throw new Error(result.error);
@@ -739,6 +789,7 @@
           } else { sidebar.classList.add("open"); overlay.style.display = "block"; }
       }
 
+      // --- AUDIO ENGINES ---
       function playScanSound() {
         try {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -748,6 +799,16 @@
             gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
             osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.1);
         } catch(e) {}
+      }
+
+      function playMatchSound() {
+          try {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)();
+              const osc = ctx.createOscillator(); const gain = ctx.createGain();
+              osc.type = 'sine'; osc.frequency.setValueAtTime(1046.50, ctx.currentTime); 
+              gain.gain.setValueAtTime(0.2, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+              osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.15);
+          } catch(e) {}
       }
 
       function playErrorSound() {
@@ -807,13 +868,11 @@
       function logOut() {
           toggleSidebar(); sessionStorage.clear(); 
           activeSheetName = ""; accessLevel = ""; activeRequestId = ""; activeOpsName = ""; lastLockedTarget = "";
-          masterSkuData = []; masterStaffData = []; masterOpsData = [];
+          masterSkuData = []; masterStaffData = []; masterOpsData = []; globalPickListCache = [];
           document.getElementById('admin-password').value = ""; document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
           document.getElementById('scanner-request-input').value = "";
           
-          hideAllSections();
-          closeAllModals();
-          lockScannerInputs();
+          hideAllSections(); closeAllModals(); lockScannerInputs();
           document.getElementById('admin-gate').style.display = 'block';
           showToast("Successfully Logged Out", "success");
       }
@@ -831,7 +890,6 @@
               document.getElementById('error-modal-title').innerText = "Error";
               document.getElementById('error-modal-title').style.color = "#F44336";
           }
-          
           document.getElementById('error-desc').innerText = message; 
           document.getElementById('error-modal').style.display = 'flex'; 
           document.getElementById('error-modal').dataset.returnFocus = focusElementId;
@@ -852,28 +910,17 @@
       async function checkPassword() {
         const pass = document.getElementById('admin-password').value;
         if(!pass) return;
-        
-        const errorMsg = document.getElementById('error-message');
-        errorMsg.style.display = 'none';
-        document.getElementById('btn-login').disabled = true;
-        showToast("Authenticating...", "loading");
-        
+        const errorMsg = document.getElementById('error-message'); errorMsg.style.display = 'none';
+        document.getElementById('btn-login').disabled = true; showToast("Authenticating...", "loading");
         try {
             const response = await apiCall('verifyAdminPassword', { pass: pass });
             hideToast(); document.getElementById('btn-login').disabled = false;
-
             if (response.valid) {
               activeSheetName = response.sheetName; accessLevel = response.type;
               sessionStorage.setItem("activeSheetName", activeSheetName); sessionStorage.setItem("accessLevel", accessLevel);
-              
-              hideAllSections();
-              document.getElementById('scanner-section').style.display = 'block'; 
+              hideAllSections(); document.getElementById('scanner-section').style.display = 'block'; 
               document.getElementById('db-target-name').innerText = activeSheetName;
-              
-              loadMasterData(); 
-              await loadRequestIds();
-              lockScannerInputs(); 
-              
+              loadMasterData(); await loadRequestIds(); lockScannerInputs(); 
               apiCall('getOpsTeam').then(ops => masterOpsData = ops).catch(e => console.log(e));
             } else { errorMsg.style.display = 'block'; playErrorSound(); }
         } catch(e) { hideToast(); document.getElementById('btn-login').disabled = false; showToast("Server Error", "error"); }
@@ -886,15 +933,11 @@
             const scannerList = document.getElementById('scanner-req-list');
             const receiveList = document.getElementById('receive-req-list');
             const dashboardList = document.getElementById('dashboard-req-list');
-            
             scannerList.innerHTML = ''; receiveList.innerHTML = ''; dashboardList.innerHTML = '';
-            
             requests.forEach(r => { 
                 if (r && r !== "undefined" && r.trim() !== "") {
                     const opt = `<option value="${r}">`;
-                    scannerList.innerHTML += opt;
-                    receiveList.innerHTML += opt;
-                    dashboardList.innerHTML += opt;
+                    scannerList.innerHTML += opt; receiveList.innerHTML += opt; dashboardList.innerHTML += opt;
                 }
             });
         } catch(e) { showToast("Failed to load Request IDs", "error"); }
@@ -902,45 +945,24 @@
 
       function confirmScannerRequest() {
           const val = document.getElementById('scanner-request-input').value.trim();
-          
-          if(!val || val === "undefined") {
-              lockScannerInputs();
-              lastLockedTarget = "";
-              return;
-          }
-          
-          if (val !== lastLockedTarget) {
-              lastLockedTarget = val;
-              playScanSound();
-              showToast("Target Locked: " + val, "success");
-          }
-          
-          activeRequestId = val;
-          sessionStorage.setItem("activeRequestId", activeRequestId);
-          
+          if(!val || val === "undefined") { lockScannerInputs(); lastLockedTarget = ""; return; }
+          if (val !== lastLockedTarget) { lastLockedTarget = val; playScanSound(); showToast("Target Locked: " + val, "success"); }
+          activeRequestId = val; sessionStorage.setItem("activeRequestId", activeRequestId);
           const scannerList = document.getElementById('scanner-req-list');
           const exists = Array.from(scannerList.options).some(opt => opt.value === val);
           if(!exists) {
               const opt = `<option value="${val}">`;
-              scannerList.innerHTML += opt;
-              document.getElementById('receive-req-list').innerHTML += opt;
-              document.getElementById('dashboard-req-list').innerHTML += opt;
+              scannerList.innerHTML += opt; document.getElementById('receive-req-list').innerHTML += opt; document.getElementById('dashboard-req-list').innerHTML += opt;
           }
-
           unlockScannerInputs();
       }
 
       function unlockScannerInputs() {
-          const area = document.getElementById('scanner-inputs-area');
-          area.style.opacity = '1';
-          area.style.pointerEvents = 'auto';
-          document.getElementById('sku-search').focus();
+          const area = document.getElementById('scanner-inputs-area'); area.style.opacity = '1'; area.style.pointerEvents = 'auto'; document.getElementById('sku-search').focus();
       }
 
       function lockScannerInputs() {
-          const area = document.getElementById('scanner-inputs-area');
-          area.style.opacity = '0.4';
-          area.style.pointerEvents = 'none';
+          const area = document.getElementById('scanner-inputs-area'); area.style.opacity = '0.4'; area.style.pointerEvents = 'none';
       }
 
       async function loadMasterData() {
@@ -952,7 +974,6 @@
          } catch(e) { showToast("Failed to sync database", "error"); }
       }
 
-      // --- SCANNER INPUT LOGIC ---
       function selectSku(skuName) { document.getElementById('sku-search').value = skuName; document.getElementById('sku-suggestions').style.display = 'none'; playScanSound(); document.getElementById('box-qty').focus(); }
 
       function handleQtyEnter(e) {
@@ -993,7 +1014,6 @@
             let inputId = (boxId === 'sku-suggestions') ? 'sku-search' : (boxId === 'c1-suggestions' ? 'counter-1' : 'counter-2');
             const currentInput = document.getElementById(inputId).value.trim().toLowerCase();
             if (currentInput.length === 0) return;
-
             let exactMatch = null;
             if (inputId === 'sku-search') {
                 exactMatch = masterSkuData.find(row => String(row[0]).toLowerCase() === currentInput || String(row[1]).toLowerCase() === currentInput);
@@ -1002,7 +1022,6 @@
                 exactMatch = masterStaffData.find(row => String(row[0]).toLowerCase() === currentInput || String(row[1] || "").toLowerCase() === currentInput);
                 if (exactMatch) return selectStaff(exactMatch[0], inputId);
             }
-
             const box = document.getElementById(boxId);
             if (box.style.display === 'block') {
                 const items = box.getElementsByClassName('suggestion-item'); let currentIndex = -1;
@@ -1018,7 +1037,6 @@
         if (items.length === 0) return;
         let currentIndex = -1;
         for (let i = 0; i < items.length; i++) { if (items[i].classList.contains('active-suggestion')) { currentIndex = i; break; } }
-
         if (e.key === "ArrowDown") {
             e.preventDefault(); 
             if (currentIndex < items.length - 1) {
@@ -1036,17 +1054,11 @@
 
       function triggerPreview() {
         clearInterval(countdownTimer); 
-
-        const skuInput = document.getElementById('sku-search').value;
-        const qty = document.getElementById('box-qty').value;
-        const c1 = document.getElementById('counter-1').value.trim();
-        const c2 = document.getElementById('counter-2').value.trim();
-        
+        const skuInput = document.getElementById('sku-search').value; const qty = document.getElementById('box-qty').value;
+        const c1 = document.getElementById('counter-1').value.trim(); const c2 = document.getElementById('counter-2').value.trim();
         if (!skuInput || !qty || !c1 || !c2) return triggerErrorModal("Please fill in all fields before submitting.", "sku-search");
-        
         const itemDetails = masterSkuData.find(row => row[0] === skuInput);
         if (!itemDetails) return triggerErrorModal("Invalid SKU. Please select a valid item from the dropdown.", "sku-search");
-        
         const validNames = masterStaffData.map(row => String(row[0]).toLowerCase());
         if (!validNames.includes(c1.toLowerCase())) return triggerErrorModal("Invalid Counter 1 Name.", "counter-1");
         if (!validNames.includes(c2.toLowerCase())) return triggerErrorModal("Invalid Counter 2 Name.", "counter-2");
@@ -1059,175 +1071,101 @@
         document.getElementById('mod-sku').innerText = itemDetails[0];
         document.getElementById('mod-qty').innerText = qty;
         document.getElementById('mod-c1').innerText = c1;
-        document.getElementById('mod-c2-wrap').style.display = 'block';
-        document.getElementById('mod-c2').innerText = c2;
-
-        document.getElementById('btn-confirm-print').disabled = false;
-        document.getElementById('btn-confirm-print').innerText = "Print (Enter)";
+        document.getElementById('mod-c2-wrap').style.display = 'block'; document.getElementById('mod-c2').innerText = c2;
+        document.getElementById('btn-confirm-print').disabled = false; document.getElementById('btn-confirm-print').innerText = "Print (Enter)";
         document.getElementById('btn-reentry').disabled = false;
-
-        closeAllModals();
-        document.getElementById('success-modal').style.display = 'flex';
-
+        closeAllModals(); document.getElementById('success-modal').style.display = 'flex';
         setTimeout(() => document.getElementById('btn-confirm-print').focus(), 100);
 
-        timeLeft = 5;
-        document.getElementById('timer-display').innerHTML = `Auto-printing in <span id="timer-count">${timeLeft}</span> seconds...`;
-        
+        timeLeft = 5; document.getElementById('timer-display').innerHTML = `Auto-printing in <span id="timer-count">${timeLeft}</span> seconds...`;
         countdownTimer = setInterval(() => {
-            timeLeft--; 
-            const tc = document.getElementById('timer-count');
-            if (tc) tc.innerText = timeLeft;
-            if (timeLeft <= 0) { 
-                clearInterval(countdownTimer); 
-                actionPrint(); 
-            }
+            timeLeft--; const tc = document.getElementById('timer-count'); if (tc) tc.innerText = timeLeft;
+            if (timeLeft <= 0) { clearInterval(countdownTimer); actionPrint(); }
         }, 1000);
       }
 
       async function actionPrint() {
           clearInterval(countdownTimer); 
-          
-          const btnPrint = document.getElementById('btn-confirm-print');
-          if (btnPrint.disabled) return; 
-
-          const btnReentry = document.getElementById('btn-reentry'); 
-          const timerText = document.getElementById('timer-display');
-          
-          btnPrint.innerText = "Connecting to Database..."; 
-          btnPrint.disabled = true; btnReentry.disabled = true; 
-          timerText.innerText = "Securing official Box Number from Google...";
-
+          const btnPrint = document.getElementById('btn-confirm-print'); if (btnPrint.disabled) return; 
+          const btnReentry = document.getElementById('btn-reentry'); const timerText = document.getElementById('timer-display');
+          btnPrint.innerText = "Connecting to Database..."; btnPrint.disabled = true; btnReentry.disabled = true; timerText.innerText = "Securing official Box Number from Google...";
           try {
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
-              playSuccessSubmitSound(); 
-              
-              closeAllModals();
-
+              playSuccessSubmitSound(); closeAllModals();
               document.getElementById('print-request').innerText = "Request ID: " + pendingPayload.requestId;
               document.getElementById('print-sku').innerText = pendingPayload.sku;
               document.getElementById('print-qty').innerText = "Qty: " + pendingPayload.qty;
               document.getElementById('print-box').innerText = "Box #" + response.boxNumber;
               document.getElementById('print-c1').innerText = "C1: " + pendingPayload.c1;
               document.getElementById('print-c2').innerText = "C2: " + pendingPayload.c2;
-              
-              const now = new Date();
-              document.getElementById('print-date').innerText = now.toLocaleDateString() + " " + now.toLocaleTimeString();
+              const now = new Date(); document.getElementById('print-date').innerText = now.toLocaleDateString() + " " + now.toLocaleTimeString();
 
               document.getElementById('print-section').style.display = 'flex'; 
               try { 
                   JsBarcode("#print-barcode", pendingPayload.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); 
-                  
                   document.getElementById("print-box-qr").innerHTML = ""; 
-                  new QRCode(document.getElementById("print-box-qr"), {
-                      text: "BOX-" + response.boxNumber,
-                      width: 64,
-                      height: 64,
-                      colorDark : "#000000",
-                      colorLight : "#ffffff",
-                      correctLevel : QRCode.CorrectLevel.M
-                  });
+                  new QRCode(document.getElementById("print-box-qr"), { text: "BOX-" + response.boxNumber, width: 64, height: 64, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.M });
               } catch(e) {}
 
               setTimeout(() => {
-                  window.print();
-                  document.getElementById('print-section').style.display = 'none';
-
+                  window.print(); document.getElementById('print-section').style.display = 'none';
                   document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
-                  
-                  btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; 
-                  timerText.innerText = "";
-                  
+                  btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = "";
                   setTimeout(() => document.getElementById('sku-search').focus(), 10);
               }, 300);
-
           } catch(e) {
-              showToast("Failed to save entry.", "error");
-              btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; 
-              timerText.innerText = 'Error. Click Print to retry.';
+              showToast("Failed to save entry.", "error"); btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = 'Error. Click Print to retry.';
           }
       }
 
-      // --- EXCEL UPLOAD LOGIC (REQUEST REPLENISH) ---
+      // --- REQUEST REPLENISH (EXCEL UPLOAD) ---
       function switchToReplenish() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
-          hideAllSections(); 
-          document.getElementById('replenish-section').style.display = 'block';
+          hideAllSections(); document.getElementById('replenish-section').style.display = 'block';
       }
 
       async function uploadReplenishFile() {
           const reqId = document.getElementById('replenish-request-id').value.trim();
           const fileInput = document.getElementById('replenish-file');
-          
           if (!reqId) return showToast("Please enter a new Request ID.", "error");
           if (!fileInput.files.length) return showToast("Please select an Excel file.", "error");
           
-          const file = fileInput.files[0];
-          const reader = new FileReader();
-          
+          const file = fileInput.files[0]; const reader = new FileReader();
           reader.onload = async function(e) {
               try {
                   const data = new Uint8Array(e.target.result);
                   const workbook = XLSX.read(data, {type: 'array'});
                   const firstSheetName = workbook.SheetNames[0];
                   const worksheet = workbook.Sheets[firstSheetName];
-                  
-                  // header: 1 reads it as an array of arrays
                   const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
                   
                   let items = [];
                   for (let i = 0; i < rows.length; i++) {
-                      let sku = rows[i][0];
-                      let qty = rows[i][1];
-                      
-                      // Skip empty rows and string headers (e.g. "SKU", "Qty")
-                      if (sku && qty && !isNaN(qty)) {
-                          items.push({ sku: String(sku).trim(), qty: qty });
-                      }
+                      let sku = rows[i][0]; let qty = rows[i][1];
+                      if (sku && qty && !isNaN(qty)) items.push({ sku: String(sku).trim(), qty: qty });
                   }
-                  
                   if(items.length === 0) return showToast("No valid SKUs/Quantities found in Excel.", "error");
                   
-                  // --- NEW: ALPHABETICAL SORTING LOGIC ---
-                  // This instantly sorts the SKUs from A-Z before sending them to the database
-                  items.sort((a, b) => a.sku.localeCompare(b.sku));
-                  
                   showToast("Uploading data...", "loading");
-                  
-                  // --- SECURE ERROR HANDLING ---
                   try {
                       await apiCall('savePickRequest', { requestId: reqId, items: items });
-                      hideToast();
-                      showToast("Pick Request Created Successfully!", "success");
-                      
-                      document.getElementById('replenish-request-id').value = "";
-                      fileInput.value = "";
-                      
-                      // Reload global lists so the new ID appears immediately
-                      loadRequestIds();
-                      loadPickRequestDropdown();
+                      hideToast(); showToast("Pick Request Created Successfully!", "success");
+                      document.getElementById('replenish-request-id').value = ""; fileInput.value = "";
+                      loadRequestIds(); loadPickRequestDropdown();
                   } catch (apiErr) {
                       hideToast();
-                      // Catch the duplicate error and trigger the massive red error screen
-                      if (apiErr.message.includes("DUPLICATE_REQUEST_ID")) {
-                          triggerErrorModal("This Request ID already exists! Please use a unique ID.", "replenish-request-id");
-                      } else {
-                          triggerErrorModal("Failed to save Pick Request. Please try again.", "replenish-request-id");
-                      }
+                      if (apiErr.message.includes("DUPLICATE_REQUEST_ID")) triggerErrorModal("This Request ID already exists! Please use a unique ID.", "replenish-request-id");
+                      else triggerErrorModal("Failed to save Pick Request. Please try again.", "replenish-request-id");
                   }
-                  
-              } catch(err) {
-                  hideToast();
-                  showToast("Error parsing Excel file.", "error");
-              }
+              } catch(err) { hideToast(); showToast("Error parsing Excel file.", "error"); }
           };
           reader.readAsArrayBuffer(file);
       }
+
       // --- PICK REQUEST DASHBOARD LOGIC ---
       function switchToPickRequest() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
-          hideAllSections(); 
-          document.getElementById('pick-request-section').style.display = 'flex';
+          hideAllSections(); document.getElementById('pick-request-section').style.display = 'flex';
           loadPickRequestDropdown();
       }
 
@@ -1235,50 +1173,246 @@
           try {
               const requests = await apiCall('getPickRequestIds');
               const selectList = document.getElementById('pick-request-input');
-              
-              // Clear current options and set the default prompt
               selectList.innerHTML = '<option value="" disabled selected>Select a Request ID...</option>';
-              
-              requests.forEach(r => { 
-                  if (r && r !== "undefined" && r.trim() !== "") {
-                      // Add real dropdown options
-                      selectList.innerHTML += `<option value="${r}">${r}</option>`; 
-                  }
-              });
-          } catch(e) { 
-              showToast("Failed to load Pick Request IDs", "error"); 
-          }
+              requests.forEach(r => { if (r && r !== "undefined" && r.trim() !== "") selectList.innerHTML += `<option value="${r}">${r}</option>`; });
+          } catch(e) { showToast("Failed to load Pick Request IDs", "error"); }
       }
 
       async function loadPickRequestData() {
           const reqId = document.getElementById('pick-request-input').value.trim();
-          if (!reqId || reqId === "undefined") return;
+          const startBtn = document.getElementById('start-pick-btn');
+          if (!reqId || reqId === "undefined") { startBtn.style.display = 'none'; return; }
           
           showToast("Loading Pick List...", "loading");
           try {
               const items = await apiCall('getPickRequestDetails', { requestId: reqId });
               hideToast();
               
-              const tbody = document.getElementById('pick-request-table-body');
-              tbody.innerHTML = '';
+              globalPickListCache = items; // Store globally for the picking engine
+              const tbody = document.getElementById('pick-request-table-body'); tbody.innerHTML = '';
               
               if (!items || items.length === 0) {
-                  tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #777;">No items found for this Request ID.</td></tr>';
-                  return;
+                  tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">No items found for this Request ID.</td></tr>';
+                  startBtn.style.display = 'none'; return;
               }
               
+              let hasPickableItems = false;
               items.forEach(item => {
+                  let outOfStock = (!item.locations || item.locations.length === 0);
+                  let statusHtml = outOfStock ? `<span style="color: #D32F2F; font-weight:bold;">🔴 Out of Stock</span>` : `<span style="color: #FBC02D; font-weight:bold;">🟡 Pending</span>`;
+                  let rowStyle = outOfStock ? "background-color: #ffebee; opacity: 0.8;" : "";
+                  if (!outOfStock) hasPickableItems = true;
+
                   tbody.innerHTML += `
-                      <tr>
+                      <tr style="${rowStyle}">
                           <td><span style="background: #eef2f3; padding: 4px 8px; border-radius: 4px; font-weight:bold;">${reqId}</span></td>
                           <td>${item.sku}</td>
-                          <td><b>${item.qty}</b></td>
+                          <td><b>${item.targetQty}</b></td>
+                          <td>${statusHtml}</td>
                       </tr>
                   `;
               });
+
+              startBtn.style.display = hasPickableItems ? 'inline-block' : 'none';
+          } catch(e) { hideToast(); showToast("Failed to load list.", "error"); }
+      }
+
+      // ==========================================
+      // --- WMS DIRECTED PICKING ENGINE ---
+      // ==========================================
+
+      function initiatePickProcess() {
+          if (!masterStaffData || masterStaffData.length === 0) {
+              apiCall('getStaffList').then(res => { masterStaffData = res; openPickerAuthModal(); }).catch(e => showToast("Database error.", "error"));
+          } else { openPickerAuthModal(); }
+      }
+
+      function openPickerAuthModal() {
+          closeAllModals();
+          document.getElementById('picker-auth-input').value = ""; 
+          document.getElementById('picker-auth-modal').style.display = 'flex';
+          setTimeout(() => document.getElementById('picker-auth-input').focus(), 100);
+      }
+
+      function handlePickerAuthEnter(e) {
+          if (e.key === "Enter") {
+              clearTimeout(opsScannerTimer); e.preventDefault(); 
+              const input = document.getElementById('picker-auth-input').value.trim().toLowerCase();
+              const match = masterStaffData.find(row => String(row[0]).toLowerCase() === input || String(row[1] || "").toLowerCase() === input);
+              
+              if (match) {
+                  playSuccessReceiveSound(); closeAllModals();
+                  activePickerName = match[0];
+                  startDirectedPicking();
+              } else {
+                  playErrorSound(); document.getElementById('picker-auth-input').value = ""; 
+                  showToast("Invalid Badge.", "error");
+              }
+              return;
+          }
+          clearTimeout(opsScannerTimer);
+          opsScannerTimer = setTimeout(() => { document.getElementById('picker-auth-input').value = ""; }, 500);
+      }
+
+      function startDirectedPicking() {
+          hideAllSections();
+          document.getElementById('active-picking-section').style.display = 'block';
+          
+          const reqId = document.getElementById('pick-request-input').value.trim();
+          document.getElementById('pick-req-id-display').innerText = reqId;
+          document.getElementById('pick-staff-display').innerText = activePickerName;
+          
+          currentPickSkuIndex = 0; currentPickLocIndex = 0;
+          finalizedPickLogs = []; currentPickedLog = []; remainingTargetQty = 0;
+          
+          renderNextPickStep();
+      }
+
+      function renderNextPickStep() {
+          // Check if we finished all SKUs in the array
+          if (currentPickSkuIndex >= globalPickListCache.length) {
+              submitPickedItems(); return;
+          }
+          
+          const skuItem = globalPickListCache[currentPickSkuIndex];
+          
+          // Skip completely out of stock items
+          if (!skuItem.locations || skuItem.locations.length === 0) {
+              finalizedPickLogs.push({ sku: skuItem.sku, totalQty: 0, locations: [] });
+              currentPickSkuIndex++; renderNextPickStep(); return;
+          }
+
+          // Initial Load of a new SKU
+          if (currentPickLocIndex === 0 && remainingTargetQty === 0) {
+              remainingTargetQty = parseInt(skuItem.targetQty, 10);
+              currentPickedLog = [];
+          }
+
+          const locItem = skuItem.locations[currentPickLocIndex];
+          
+          // Update UI Text
+          document.getElementById('pick-sku-name').innerText = skuItem.sku;
+          document.getElementById('pick-target-qty').innerText = skuItem.targetQty;
+          document.getElementById('pick-rem-qty').innerText = remainingTargetQty;
+          document.getElementById('pick-loc-name').innerText = locItem.loc;
+          document.getElementById('pick-loc-avail').innerText = locItem.qty;
+
+          // Reset Inputs
+          const inputBar = document.getElementById('pick-scan-barcode');
+          const inputLoc = document.getElementById('pick-scan-loc');
+          const inputQty = document.getElementById('pick-enter-qty');
+          
+          inputBar.value = ""; inputBar.disabled = false; inputBar.className = "pick-input-box";
+          inputLoc.value = ""; inputLoc.disabled = true; inputLoc.className = "pick-input-box";
+          inputQty.value = ""; inputQty.disabled = true; inputQty.className = "pick-input-box";
+          
+          document.getElementById('pick-skip-btn').disabled = false;
+          
+          setTimeout(() => inputBar.focus(), 100);
+      }
+
+      function handlePickBarcodeScan(e) {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          const skuItem = globalPickListCache[currentPickSkuIndex];
+          const inputBar = document.getElementById('pick-scan-barcode');
+          
+          if (inputBar.value.trim().toLowerCase() === skuItem.barcode.toLowerCase() || inputBar.value.trim().toLowerCase() === skuItem.sku.toLowerCase()) {
+              playMatchSound();
+              inputBar.className = "pick-input-box success"; inputBar.disabled = true;
+              const inputLoc = document.getElementById('pick-scan-loc');
+              inputLoc.disabled = false; setTimeout(() => inputLoc.focus(), 10);
+          } else {
+              playErrorSound(); inputBar.value = ""; inputBar.className = "pick-input-box error";
+              setTimeout(() => inputBar.className = "pick-input-box", 500);
+          }
+      }
+
+      function handlePickLocationScan(e) {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          const locItem = globalPickListCache[currentPickSkuIndex].locations[currentPickLocIndex];
+          const inputLoc = document.getElementById('pick-scan-loc');
+          
+          if (inputLoc.value.trim().toLowerCase() === locItem.loc.toLowerCase()) {
+              playMatchSound();
+              inputLoc.className = "pick-input-box success"; inputLoc.disabled = true;
+              const inputQty = document.getElementById('pick-enter-qty');
+              inputQty.disabled = false; setTimeout(() => inputQty.focus(), 10);
+              document.getElementById('pick-skip-btn').disabled = true; // Can't skip once location validated
+          } else {
+              playErrorSound(); inputLoc.value = ""; inputLoc.className = "pick-input-box error";
+              setTimeout(() => inputLoc.className = "pick-input-box", 500);
+          }
+      }
+
+      function handlePickQtyEnter(e) {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          const inputQty = document.getElementById('pick-enter-qty');
+          const qtyVal = parseInt(inputQty.value.trim(), 10);
+          
+          if (isNaN(qtyVal) || qtyVal <= 0) {
+              playErrorSound(); inputQty.value = ""; inputQty.className = "pick-input-box error";
+              setTimeout(() => inputQty.className = "pick-input-box", 500); return;
+          }
+
+          playSuccessSubmitSound();
+          inputQty.className = "pick-input-box success"; inputQty.disabled = true;
+          
+          const skuItem = globalPickListCache[currentPickSkuIndex];
+          const locItem = skuItem.locations[currentPickLocIndex];
+
+          currentPickedLog.push({ loc: locItem.loc, qty: qtyVal });
+          remainingTargetQty -= qtyVal;
+
+          // Check if SKU is complete or out of locations
+          if (remainingTargetQty <= 0 || currentPickLocIndex + 1 >= skuItem.locations.length) {
+              let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.qty, 0);
+              finalizedPickLogs.push({ sku: skuItem.sku, totalQty: totalPicked, locations: [...currentPickedLog] });
+              
+              currentPickSkuIndex++; currentPickLocIndex = 0; remainingTargetQty = 0;
+              setTimeout(() => renderNextPickStep(), 400);
+          } else {
+              // Not enough qty picked, but more locations exist
+              currentPickLocIndex++;
+              setTimeout(() => renderNextPickStep(), 400);
+          }
+      }
+
+      function skipCurrentPickLocation() {
+          playScanSound();
+          const skuItem = globalPickListCache[currentPickSkuIndex];
+          
+          if (currentPickLocIndex + 1 >= skuItem.locations.length) {
+              // No more locations to skip to, finish SKU
+              let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.qty, 0);
+              finalizedPickLogs.push({ sku: skuItem.sku, totalQty: totalPicked, locations: [...currentPickedLog] });
+              currentPickSkuIndex++; currentPickLocIndex = 0; remainingTargetQty = 0;
+          } else {
+              currentPickLocIndex++;
+          }
+          renderNextPickStep();
+      }
+
+      function cancelActivePicking() {
+          if(confirm("Are you sure you want to cancel this pick? Progress will not be saved.")) {
+              switchToPickRequest();
+          }
+      }
+
+      async function submitPickedItems() {
+          const reqId = document.getElementById('pick-req-id-display').innerText;
+          showToast("Saving Picking Logs...", "loading");
+          document.getElementById('active-picking-section').style.display = 'none';
+          
+          try {
+              await apiCall('savePickedItems', { requestId: reqId, staffName: activePickerName, items: finalizedPickLogs });
+              playSuccessReceiveSound();
+              showToast("Picking Complete & Saved!", "success");
+              setTimeout(() => switchToPickRequest(), 1500);
           } catch(e) {
-              hideToast();
-              showToast("Failed to load list.", "error");
+              hideToast(); triggerErrorModal("Failed to save picking logs to the database.", "pick-request-input");
           }
       }
 
@@ -1300,16 +1434,12 @@
 
       function switchToScanner() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
-          hideAllSections(); 
-          document.getElementById('scanner-section').style.display = 'block';
+          hideAllSections(); document.getElementById('scanner-section').style.display = 'block';
           
           if(activeRequestId && activeRequestId !== "undefined") {
               document.getElementById('scanner-request-input').value = activeRequestId;
-              unlockScannerInputs();
-              setTimeout(() => document.getElementById('sku-search').focus(), 10);
-          } else {
-              lockScannerInputs();
-          }
+              unlockScannerInputs(); setTimeout(() => document.getElementById('sku-search').focus(), 10);
+          } else { lockScannerInputs(); }
       }
 
       async function loadDashboardData() {
@@ -1360,8 +1490,7 @@
               let rowStyle = isVoid ? "background-color: #ffebee; text-decoration: line-through; opacity: 0.7;" : (log.receiveBy ? "background-color: #f1f8e9;" : "");
               let receiveStatus = isVoid ? `<span style="color: #d32f2f; font-weight:bold;">🚫 ${log.receiveBy}</span>` : (log.receiveBy ? `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${log.receiveBy}</span>` : `<span style="color: #F44336; font-weight:bold;">🔴 Pending</span>`);
               
-              let actionButtons = isVoid ? 
-                  `<span style="color:#d32f2f; font-weight:bold;">VOID</span>` : 
+              let actionButtons = isVoid ? `<span style="color:#d32f2f; font-weight:bold;">VOID</span>` : 
                   `<div style="display:flex; gap:5px; justify-content:center;">
                       <button onclick="initiateReprint('${log.requestId}', '${log.sku}', '${log.barcode}', '${log.qty}', '${log.boxNum}', '${log.c1}', '${log.c2}', ${log.rowIndex})" class="orange-btn" title="Reprint">🖨️</button>
                       <button onclick="initiateVoid('${log.boxNum}', ${log.rowIndex})" class="orange-btn" style="background-color: #F44336;" title="Void">🗑️</button>
@@ -1382,270 +1511,6 @@
                   </tr>
               `;
           });
-      }
-
-      // --- VOID LOGIC ---
-      function initiateVoid(boxNum, rowIndex) {
-          pendingVoidRow = rowIndex;
-          document.getElementById('void-box-target').innerText = boxNum;
-          closeAllModals();
-          document.getElementById('void-auth-input').value = ""; 
-          document.getElementById('void-auth-modal').style.display = 'flex';
-          setTimeout(() => document.getElementById('void-auth-input').focus(), 100);
-      }
-
-      function handleVoidAuthEnter(e) {
-          if (e.key === "Enter") {
-              clearTimeout(opsScannerTimer);
-              e.preventDefault(); 
-              const input = document.getElementById('void-auth-input').value.trim().toLowerCase();
-              const exactMatch = masterStaffData.find(row => String(row[0]).toLowerCase() === input || String(row[1] || "").toLowerCase() === input);
-              if (exactMatch) {
-                  playAlarmSound(); 
-                  closeAllModals(); 
-                  confirmVoidAction(exactMatch[0]);
-              } else {
-                  playErrorSound(); 
-                  document.getElementById('void-auth-input').value = ""; 
-                  showToast("Invalid Badge. Please scan a valid ID.", "error");
-              }
-              return;
-          }
-          clearTimeout(opsScannerTimer);
-          opsScannerTimer = setTimeout(() => { document.getElementById('void-auth-input').value = ""; }, 500);
-      }
-
-      async function confirmVoidAction(staffName) {
-          if (!pendingVoidRow) return;
-          showToast("Voiding Box...", "loading");
-          try {
-              await apiCall('voidBox', { sheetName: activeSheetName, rowIndex: pendingVoidRow, staffName: staffName });
-              pendingVoidRow = null; 
-              loadDashboardData(); 
-              showToast("Box successfully voided!", "success");
-          } catch(e) { 
-              showToast("Failed to void box.", "error"); 
-          }
-      }
-
-      // --- REPRINT LOGIC ---
-      function initiateReprint(reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex) {
-          pendingReprintData = { reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex }; pendingReprintRow = rowIndex;
-          closeAllModals();
-          document.getElementById('reprint-auth-input').value = ""; document.getElementById('reprint-auth-modal').style.display = 'flex';
-          setTimeout(() => document.getElementById('reprint-auth-input').focus(), 100);
-      }
-
-      function cancelReprintAuth() {
-          pendingReprintData = null; pendingReprintRow = null; authorizedReprintStaff = ""; closeAllModals();
-      }
-
-      function handleReprintAuthEnter(e) {
-          if (e.key === "Enter") {
-              clearTimeout(opsScannerTimer);
-              e.preventDefault(); const input = document.getElementById('reprint-auth-input').value.trim().toLowerCase();
-              const exactMatch = masterStaffData.find(row => String(row[0]).toLowerCase() === input || String(row[1] || "").toLowerCase() === input);
-              if (exactMatch) {
-                  playScanSound(); authorizedReprintStaff = exactMatch[0]; closeAllModals(); executeReprintLabel();
-              } else {
-                  playErrorSound(); document.getElementById('reprint-auth-input').value = ""; showToast("Invalid Badge. Please scan a valid Staff ID.", "error");
-              }
-              return;
-          }
-          clearTimeout(opsScannerTimer);
-          opsScannerTimer = setTimeout(() => { document.getElementById('reprint-auth-input').value = ""; }, 500);
-      }
-
-      function executeReprintLabel() {
-          const data = pendingReprintData;
-          document.getElementById('print-request').innerText = "Request ID: " + data.reqId; document.getElementById('print-sku').innerText = data.sku; document.getElementById('print-qty').innerText = "Qty: " + data.qty; document.getElementById('print-box').innerText = "Box #" + data.boxNum; document.getElementById('print-c1').innerText = "C1: " + data.c1; document.getElementById('print-c2').innerText = "C2: " + data.c2;
-          document.getElementById('print-date').innerText = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
-
-          document.getElementById('print-section').style.display = 'flex';
-          try { 
-              JsBarcode("#print-barcode", data.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); 
-              
-              document.getElementById("print-box-qr").innerHTML = ""; 
-              new QRCode(document.getElementById("print-box-qr"), {
-                  text: "BOX-" + data.boxNum,
-                  width: 64,
-                  height: 64,
-                  colorDark : "#000000",
-                  colorLight : "#ffffff",
-                  correctLevel : QRCode.CorrectLevel.M
-              });
-          } catch(e) {}
-
-          setTimeout(() => {
-              window.print(); document.getElementById('print-section').style.display = 'none'; closeAllModals(); document.getElementById('reprint-modal').style.display = 'flex';
-          }, 300);
-      }
-
-      function cancelReprintVerification() {
-          pendingReprintData = null; pendingReprintRow = null; authorizedReprintStaff = ""; closeAllModals(); showToast("Reprint cancelled. Count not added.", "info");
-      }
-
-      async function confirmReprintVerification() {
-          closeAllModals();
-          if (!pendingReprintRow || !authorizedReprintStaff) return;
-          showToast("Updating print count...", "loading");
-          try {
-              await apiCall('incrementPrintCount', { sheetName: activeSheetName, rowIndex: pendingReprintRow, staffName: authorizedReprintStaff });
-              pendingReprintRow = null; pendingReprintData = null; authorizedReprintStaff = ""; loadDashboardData(); showToast("Print count updated!", "success");
-          } catch(e) { showToast("Failed to update count.", "error"); }
-      }
-
-      // --- LIGHTNING-FAST RECEIVING MODULE ---
-      async function switchToReceiveLogin() {
-          const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
-          
-          if (!masterOpsData || masterOpsData.length === 0) {
-              try { masterOpsData = await apiCall('getOpsTeam'); } catch(e) {}
-          }
-
-          if (activeOpsName) return switchToReceiveMain();
-
-          hideAllSections();
-          document.getElementById('receive-login-section').style.display = 'block';
-          setTimeout(() => document.getElementById('ops-passkey').focus(), 100);
-      }
-
-      function handleOpsLoginScan(e) {
-          if (e.key === 'Enter') {
-              clearTimeout(opsScannerTimer);
-              e.preventDefault();
-              const passkey = document.getElementById('ops-passkey').value.trim();
-              document.getElementById('ops-passkey').value = ""; 
-              
-              const match = masterOpsData.find(row => String(row[1]).toLowerCase() === passkey.toLowerCase());
-              if (match) {
-                  activeOpsName = match[0];
-                  sessionStorage.setItem("activeOpsName", activeOpsName);
-                  playSuccessReceiveSound();
-                  showToast(`Welcome, ${activeOpsName}!`, "success");
-                  switchToReceiveMain();
-              } else {
-                  playErrorSound();
-                  showToast("Invalid Ops Passkey!", "error");
-              }
-              return;
-          }
-          clearTimeout(opsScannerTimer);
-          opsScannerTimer = setTimeout(() => { document.getElementById('ops-passkey').value = ""; }, 500);
-      }
-
-      async function switchToReceiveMain() {
-          hideAllSections();
-          document.getElementById('receive-dashboard-section').style.display = 'flex';
-          document.getElementById('active-ops-label').innerText = activeOpsName;
-
-          try {
-              const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
-              const datalist = document.getElementById('receive-req-list');
-              datalist.innerHTML = '';
-              requests.forEach(r => { 
-                  if (r && r !== "undefined" && r.trim() !== "") datalist.innerHTML += `<option value="${r}">`; 
-              });
-          } catch(e) { showToast("Failed to load Request IDs", "error"); }
-      }
-
-      async function loadReceiveDashboardData() {
-          const reqId = document.getElementById('receive-request-input').value.trim();
-          if(!reqId || reqId === "undefined") return;
-
-          showToast("Loading Checklist...", "loading");
-          try {
-              const logs = await apiCall('getDashboardLogs', { sheetName: activeSheetName, requestId: reqId });
-              hideToast(); currentDashboardLogs = logs || []; renderReceiveChecklist();
-              setTimeout(() => document.getElementById('receive-box-scan').focus(), 100);
-          } catch(e) { hideToast(); showToast("Failed to load checklist", "error"); }
-      }
-
-      function renderReceiveChecklist() {
-          const tbody = document.getElementById('receive-table-body'); tbody.innerHTML = '';
-          
-          let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId !== "undefined");
-          
-          if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">No boxes found for this request.</td></tr>'; return; }
-
-          filteredLogs.forEach(log => {
-              let counters = log.c2 ? `${log.c1} / ${log.c2}` : log.c1;
-              let receiveStatus = log.receiveBy ? `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${log.receiveBy}</span>` : `<span style="color: #F44336; font-weight:bold;">🔴 Pending</span>`;
-              let rowStyle = log.receiveBy ? "background-color: #f1f8e9;" : ""; 
-
-              tbody.innerHTML += `
-                  <tr style="${rowStyle}" id="box-row-${log.boxNum}">
-                      <td><b>Box #${log.boxNum}</b></td>
-                      <td>${log.sku}</td>
-                      <td><b>${log.qty}</b></td>
-                      <td>${counters}</td>
-                      <td id="box-status-${log.boxNum}">${receiveStatus}</td>
-                  </tr>
-              `;
-          });
-      }
-
-      function handleBoxReceiveScan(e) {
-          if (e.key === 'Enter') {
-              clearTimeout(receiveScannerTimer);
-              e.preventDefault();
-              const val = document.getElementById('receive-box-scan').value.trim();
-              document.getElementById('receive-box-scan').value = ""; 
-              if (val) processBoxReceiveOptimistic(val);
-              return;
-          }
-          clearTimeout(receiveScannerTimer);
-          receiveScannerTimer = setTimeout(() => { document.getElementById('receive-box-scan').value = ""; }, 500);
-      }
-
-      async function processBoxReceiveOptimistic(scannedVal) {
-          let boxNum = scannedVal.replace(/^BOX-/i, "").trim();
-          if(!boxNum || isNaN(boxNum)) { playErrorSound(); return showToast("Invalid Box Barcode Scanned", "error"); }
-
-          const reqId = document.getElementById('receive-request-input').value.trim();
-          if(!reqId) { playErrorSound(); return showToast("Please select a Request ID first!", "error"); }
-
-          const targetLog = currentDashboardLogs.find(l => String(l.boxNum) === String(boxNum));
-          
-          if (targetLog && targetLog.receiveBy && targetLog.receiveBy.toUpperCase().includes("VOID")) {
-              playErrorSound();
-              if (document.getElementById('camera-modal').style.display === 'flex') return showToast(`ERROR: Box #${boxNum} is VOIDED.`, "error");
-              return triggerErrorModal(`ERROR: Box #${boxNum} has been completely VOIDED. You cannot receive this box.`, "receive-box-scan", true);
-          }
-
-          if (targetLog && targetLog.receiveBy) {
-              playAlarmSound();
-              if (document.getElementById('camera-modal').style.display === 'flex') return showToast(`ALREADY RECEIVED: Box #${boxNum}`, "error");
-              return triggerErrorModal(`Box #${boxNum} was already received by ${targetLog.receiveBy} on ${targetLog.dateReceived}.`, "receive-box-scan", true);
-          }
-
-          if (targetLog) {
-              targetLog.receiveBy = activeOpsName;
-              const statusCell = document.getElementById(`box-status-${boxNum}`);
-              const rowEl = document.getElementById(`box-row-${boxNum}`);
-              if(statusCell) statusCell.innerHTML = `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${activeOpsName}</span>`;
-              if(rowEl) rowEl.style.backgroundColor = "#f1f8e9";
-          }
-          playSuccessReceiveSound();
-          showToast(`Box #${boxNum} Received!`, "success");
-
-          setTimeout(() => document.getElementById('receive-box-scan').focus(), 10);
-
-          try {
-              const res = await apiCall('receiveBox', { sheetName: activeSheetName, requestId: reqId, boxNum: boxNum, opsName: activeOpsName });
-              if (res.error === "ALREADY_RECEIVED") {
-                  playAlarmSound();
-                  loadReceiveDashboardData(); 
-                  
-                  if (document.getElementById('camera-modal').style.display === 'flex') {
-                      showToast(`ALREADY RECEIVED: Box #${boxNum}`, "error");
-                  } else {
-                      triggerErrorModal(`Box #${boxNum} was already received by ${res.receivedBy} on ${res.dateReceived}.`, "receive-box-scan", true);
-                  }
-              }
-          } catch(e) {
-              console.error("Background sync failed:", e);
-          }
       }
     </script>
   </body>
