@@ -1188,9 +1188,13 @@
                   
                   if(items.length === 0) return showToast("No valid SKUs/Quantities found in Excel.", "error");
                   
+                  // --- NEW: ALPHABETICAL SORTING LOGIC ---
+                  // This instantly sorts the SKUs from A-Z before sending them to the database
+                  items.sort((a, b) => a.sku.localeCompare(b.sku));
+                  
                   showToast("Uploading data...", "loading");
                   
-                  // --- NEW: SECURE ERROR HANDLING ---
+                  // --- SECURE ERROR HANDLING ---
                   try {
                       await apiCall('savePickRequest', { requestId: reqId, items: items });
                       hideToast();
@@ -1219,7 +1223,6 @@
           };
           reader.readAsArrayBuffer(file);
       }
-
       // --- PICK REQUEST DASHBOARD LOGIC ---
       function switchToPickRequest() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
