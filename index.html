@@ -313,7 +313,7 @@
                 </select>
             </div>
             <button onclick="loadPickRequestData()" class="orange-btn responsive-filter-btn" style="height: 42px;">🔄 Refresh List</button>
-            <!-- NEW: Start Pick Button -->
+            <!-- Start Pick Button -->
             <button onclick="initiatePickProcess()" id="start-pick-btn" class="blue-btn responsive-filter-btn" style="height: 42px; display: none; background-color: #4CAF50;">🛒 Start Picking</button>
         </div>
 
@@ -357,8 +357,11 @@
         <input type="number" id="pick-enter-qty" class="pick-input-box" placeholder="3️⃣ Enter Picked Qty..." onkeydown="handlePickQtyEnter(event)" autocomplete="off" disabled>
         
         <div style="display: flex; gap: 10px; margin-top: 10px;">
-            <button onclick="skipCurrentPickLocation()" class="orange-btn" style="flex: 1; padding: 15px; font-size: 15px;" id="pick-skip-btn">⏭️ Skip Location</button>
-            <button onclick="cancelActivePicking()" class="btn-error" style="flex: 1; padding: 15px; font-size: 15px;">✖️ Cancel Pick</button>
+            <button onclick="skipCurrentPickLocation()" class="orange-btn" style="flex: 1; padding: 15px; font-size: 15px;" id="pick-skip-btn">⏭️ Skip Loc</button>
+            <button onclick="skipCurrentSku()" class="btn-error" style="flex: 1; padding: 15px; font-size: 15px; background-color: #757575;" id="pick-skip-sku-btn">⏭️ Skip SKU</button>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button onclick="cancelActivePicking()" class="btn-error" style="width: 100%; padding: 15px; font-size: 15px;">✖️ Cancel Pick</button>
         </div>
     </div>
 
@@ -632,7 +635,6 @@
       let currentPickLocIndex = 0;
       let remainingTargetQty = 0;
       let currentPickedLog = [];
-      let finalizedPickLogs = [];
       let activePickerName = "";
 
       // --- GLOBAL BARCODE LISTENER FOR MAGIC PRINT ---
@@ -1146,6 +1148,8 @@
                   }
                   if(items.length === 0) return showToast("No valid SKUs/Quantities found in Excel.", "error");
                   
+                  items.sort((a, b) => String(a.sku).localeCompare(String(b.sku), undefined, { numeric: true, sensitivity: 'base' }));
+
                   showToast("Uploading data...", "loading");
                   try {
                       await apiCall('savePickRequest', { requestId: reqId, items: items });
@@ -1192,7 +1196,7 @@
               const tbody = document.getElementById('pick-request-table-body'); tbody.innerHTML = '';
               
               if (!items || items.length === 0) {
-                  tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">No items found for this Request ID.</td></tr>';
+                  tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">No active items found for this Request ID.</td></tr>';
                   startBtn.style.display = 'none'; return;
               }
               
@@ -1263,26 +1267,28 @@
           document.getElementById('pick-staff-display').innerText = activePickerName;
           
           currentPickSkuIndex = 0; currentPickLocIndex = 0;
-          finalizedPickLogs = []; currentPickedLog = []; remainingTargetQty = 0;
+          currentPickedLog = []; remainingTargetQty = 0;
           
           renderNextPickStep();
       }
 
       function renderNextPickStep() {
-          // Check if we finished all SKUs in the array
           if (currentPickSkuIndex >= globalPickListCache.length) {
-              submitPickedItems(); return;
+              document.getElementById('active-picking-section').style.display = 'none';
+              playSuccessReceiveSound();
+              showToast("All SKUs Processed!", "success");
+              setTimeout(() => switchToPickRequest(), 1500);
+              return;
           }
           
           const skuItem = globalPickListCache[currentPickSkuIndex];
           
-          // Skip completely out of stock items
+          // Skip completely out of stock items, but save them as 0 so they are cleared
           if (!skuItem.locations || skuItem.locations.length === 0) {
-              finalizedPickLogs.push({ sku: skuItem.sku, totalQty: 0, locations: [] });
-              currentPickSkuIndex++; renderNextPickStep(); return;
+              finishCurrentSku();
+              return;
           }
 
-          // Initial Load of a new SKU
           if (currentPickLocIndex === 0 && remainingTargetQty === 0) {
               remainingTargetQty = parseInt(skuItem.targetQty, 10);
               currentPickedLog = [];
@@ -1290,14 +1296,12 @@
 
           const locItem = skuItem.locations[currentPickLocIndex];
           
-          // Update UI Text
           document.getElementById('pick-sku-name').innerText = skuItem.sku;
           document.getElementById('pick-target-qty').innerText = skuItem.targetQty;
           document.getElementById('pick-rem-qty').innerText = remainingTargetQty;
           document.getElementById('pick-loc-name').innerText = locItem.loc;
           document.getElementById('pick-loc-avail').innerText = locItem.qty;
 
-          // Reset Inputs
           const inputBar = document.getElementById('pick-scan-barcode');
           const inputLoc = document.getElementById('pick-scan-loc');
           const inputQty = document.getElementById('pick-enter-qty');
@@ -1307,8 +1311,46 @@
           inputQty.value = ""; inputQty.disabled = true; inputQty.className = "pick-input-box";
           
           document.getElementById('pick-skip-btn').disabled = false;
+          document.getElementById('pick-skip-sku-btn').disabled = false;
           
           setTimeout(() => inputBar.focus(), 100);
+      }
+
+      // --- INDIVIDUAL SKU SAVING (OPTIMISTIC) ---
+      async function finishCurrentSku() {
+          const skuItem = globalPickListCache[currentPickSkuIndex];
+          let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.qty, 0);
+          
+          let singlePickLog = [{ 
+              sku: skuItem.sku, 
+              totalQty: totalPicked, 
+              locations: [...currentPickedLog] 
+          }];
+
+          const reqId = document.getElementById('pick-req-id-display').innerText;
+          
+          showToast(`Saving ${skuItem.sku}...`, "loading");
+          
+          // Disable inputs during save to prevent double clicks
+          document.getElementById('pick-skip-btn').disabled = true;
+          document.getElementById('pick-skip-sku-btn').disabled = true;
+          document.getElementById('pick-scan-barcode').disabled = true;
+          document.getElementById('pick-scan-loc').disabled = true;
+          document.getElementById('pick-enter-qty').disabled = true;
+
+          try {
+              await apiCall('savePickedItems', { requestId: reqId, staffName: activePickerName, items: singlePickLog });
+              showToast(`${skuItem.sku} Saved!`, "success");
+          } catch (e) {
+              showToast(`Failed to save ${skuItem.sku}`, "error");
+          }
+
+          currentPickSkuIndex++; 
+          currentPickLocIndex = 0; 
+          remainingTargetQty = 0;
+          currentPickedLog = [];
+          
+          renderNextPickStep();
       }
 
       function handlePickBarcodeScan(e) {
@@ -1339,7 +1381,7 @@
               inputLoc.className = "pick-input-box success"; inputLoc.disabled = true;
               const inputQty = document.getElementById('pick-enter-qty');
               inputQty.disabled = false; setTimeout(() => inputQty.focus(), 10);
-              document.getElementById('pick-skip-btn').disabled = true; // Can't skip once location validated
+              document.getElementById('pick-skip-btn').disabled = true; // Can't skip loc once validated
           } else {
               playErrorSound(); inputLoc.value = ""; inputLoc.className = "pick-input-box error";
               setTimeout(() => inputLoc.className = "pick-input-box", 500);
@@ -1352,7 +1394,7 @@
           const inputQty = document.getElementById('pick-enter-qty');
           const qtyVal = parseInt(inputQty.value.trim(), 10);
           
-          if (isNaN(qtyVal) || qtyVal <= 0) {
+          if (isNaN(qtyVal) || qtyVal < 0) {
               playErrorSound(); inputQty.value = ""; inputQty.className = "pick-input-box error";
               setTimeout(() => inputQty.className = "pick-input-box", 500); return;
           }
@@ -1366,15 +1408,9 @@
           currentPickedLog.push({ loc: locItem.loc, qty: qtyVal });
           remainingTargetQty -= qtyVal;
 
-          // Check if SKU is complete or out of locations
           if (remainingTargetQty <= 0 || currentPickLocIndex + 1 >= skuItem.locations.length) {
-              let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.qty, 0);
-              finalizedPickLogs.push({ sku: skuItem.sku, totalQty: totalPicked, locations: [...currentPickedLog] });
-              
-              currentPickSkuIndex++; currentPickLocIndex = 0; remainingTargetQty = 0;
-              setTimeout(() => renderNextPickStep(), 400);
+              finishCurrentSku();
           } else {
-              // Not enough qty picked, but more locations exist
               currentPickLocIndex++;
               setTimeout(() => renderNextPickStep(), 400);
           }
@@ -1385,34 +1421,23 @@
           const skuItem = globalPickListCache[currentPickSkuIndex];
           
           if (currentPickLocIndex + 1 >= skuItem.locations.length) {
-              // No more locations to skip to, finish SKU
-              let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.qty, 0);
-              finalizedPickLogs.push({ sku: skuItem.sku, totalQty: totalPicked, locations: [...currentPickedLog] });
-              currentPickSkuIndex++; currentPickLocIndex = 0; remainingTargetQty = 0;
+              finishCurrentSku();
           } else {
               currentPickLocIndex++;
+              renderNextPickStep();
           }
-          renderNextPickStep();
+      }
+
+      function skipCurrentSku() {
+          if(confirm("Skip this entire SKU? It will be marked as finished with whatever you've picked so far.")) {
+              playScanSound();
+              finishCurrentSku();
+          }
       }
 
       function cancelActivePicking() {
-          if(confirm("Are you sure you want to cancel this pick? Progress will not be saved.")) {
+          if(confirm("Are you sure you want to cancel this pick? Current SKU progress will be lost.")) {
               switchToPickRequest();
-          }
-      }
-
-      async function submitPickedItems() {
-          const reqId = document.getElementById('pick-req-id-display').innerText;
-          showToast("Saving Picking Logs...", "loading");
-          document.getElementById('active-picking-section').style.display = 'none';
-          
-          try {
-              await apiCall('savePickedItems', { requestId: reqId, staffName: activePickerName, items: finalizedPickLogs });
-              playSuccessReceiveSound();
-              showToast("Picking Complete & Saved!", "success");
-              setTimeout(() => switchToPickRequest(), 1500);
-          } catch(e) {
-              hideToast(); triggerErrorModal("Failed to save picking logs to the database.", "pick-request-input");
           }
       }
 
