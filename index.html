@@ -257,7 +257,7 @@
         </div>
     </div>
 
-    <!-- REQUEST REPLENISH (EXCEL UPLOAD) -->
+    <!-- REQUEST REPLENISH -->
     <div class="container" id="replenish-section" style="display: none; max-width: 500px; border: 4px solid #4CAF50;">
         <button class="menu-btn" onclick="toggleSidebar()" style="position:absolute; top: 15px; left: 15px;">☰</button>
         <h2 style="color: #4CAF50; margin-top: 30px;">📤 Request Replenish</h2>
@@ -299,9 +299,7 @@
                 </select>
             </div>
             <button onclick="loadPickRequestData()" class="orange-btn responsive-filter-btn" style="height: 42px;">🔄 Refresh List</button>
-            <!-- Start Pick Button -->
             <button onclick="initiatePickProcess()" id="start-pick-btn" class="blue-btn responsive-filter-btn" style="height: 42px; display: none; background-color: #4CAF50;">🛒 Start Picking</button>
-            <!-- Bulk Print Button -->
             <button onclick="bulkPrintPicked()" id="bulk-print-btn" class="orange-btn responsive-filter-btn" style="height: 42px; display: none; margin-left: auto;">🖨️ Bulk Print Picked</button>
         </div>
 
@@ -346,7 +344,6 @@
         <input type="text" id="pick-scan-barcode" class="pick-input-box" placeholder="1️⃣ Scan SKU Barcode..." onkeydown="handlePickBarcodeScan(event)" autocomplete="off">
         <input type="text" id="pick-scan-loc" class="pick-input-box" placeholder="2️⃣ Scan Location Barcode..." onkeydown="handlePickLocationScan(event)" autocomplete="off" disabled>
         
-        <!-- NEW MULTI-BOX MULTIPLIER UI -->
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
             <input type="number" id="pick-enter-boxes" class="pick-input-box" style="margin-bottom: 0;" placeholder="📦 Boxes" onkeydown="handlePickBoxesEnter(event)" autocomplete="off" disabled>
             <span style="font-size: 24px; font-weight: bold; padding-top: 15px;">X</span>
@@ -376,7 +373,7 @@
         <button class="btn-error" onclick="switchToScanner()" style="background-color: #9e9e9e; margin-top: 20px;">Cancel / Go Back</button>
     </div>
 
-    <!-- RECEIVING CHECKLIST DASHBOARD -->
+    <!-- RECEIVING CHECKLIST -->
     <div class="dashboard-wrapper" id="receive-dashboard-section" style="border-top: 5px solid #2196F3;">
         <div class="nav-bar" style="margin-bottom: 10px;">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -465,7 +462,7 @@
         </div>
     </div>
 
-    <!-- PICKER AUTHORIZATION MODAL -->
+    <!-- PICKER AUTH MODAL -->
     <div class="modal-overlay" id="picker-auth-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #4CAF50;">🔐</div>
@@ -483,7 +480,7 @@
         </div>
     </div>
 
-    <!-- SUCCESS / PREVIEW MODAL -->
+    <!-- PREVIEW MODAL -->
     <div class="modal-overlay" id="success-modal">
         <div class="modal-card">
             <div class="modal-icon-success">☑️</div>
@@ -504,7 +501,7 @@
         </div>
     </div>
 
-    <!-- REPRINT AUTHORIZATION MODAL -->
+    <!-- REPRINT AUTH MODAL -->
     <div class="modal-overlay" id="reprint-auth-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #ff9800;">🔐</div>
@@ -522,7 +519,7 @@
         </div>
     </div>
 
-    <!-- VOID AUTHORIZATION MODAL -->
+    <!-- VOID AUTH MODAL -->
     <div class="modal-overlay" id="void-auth-modal">
         <div class="modal-card">
             <div class="modal-icon-error" style="color: #F44336; font-size: 50px;">🗑️</div>
@@ -540,7 +537,7 @@
         </div>
     </div>
 
-    <!-- REPRINT VERIFICATION MODAL -->
+    <!-- REPRINT VERIFY MODAL -->
     <div class="modal-overlay" id="reprint-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #2196F3;">🖨️</div>
@@ -819,7 +816,6 @@
           } else { sidebar.classList.add("open"); overlay.style.display = "block"; }
       }
 
-      // --- AUDIO ENGINES ---
       function playScanSound() {
         try {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1118,7 +1114,13 @@
           try {
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
               playSuccessSubmitSound(); closeAllModals();
-              printLabelHTML([{ id: 't1', date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString(), boxNum: response.boxNumber, reqId: pendingPayload.requestId, sku: pendingPayload.sku, qty: pendingPayload.qty, barcode: pendingPayload.barcode, c1: pendingPayload.c1, c2: "-" }]);
+              
+              printLabelHTML([{
+                  id: 't1', date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString(),
+                  boxNum: response.boxNumber, reqId: pendingPayload.requestId, sku: pendingPayload.sku,
+                  qty: pendingPayload.qty, barcode: pendingPayload.barcode, c1: pendingPayload.c1, c2: "-"
+              }]);
+              
               document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
               btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = "";
               setTimeout(() => document.getElementById('sku-search').focus(), 10);
@@ -1191,7 +1193,6 @@
           try {
               const items = await apiCall('getPickRequestDetails', { requestId: reqId });
               hideToast();
-              
               globalPickListCache = items; 
               const tbody = document.getElementById('pick-request-table-body'); tbody.innerHTML = '';
               
@@ -1207,14 +1208,13 @@
                   let pQtyStr = item.pickedQty ? `<b>${item.pickedQty}</b>` : "-";
                   let pickerStr = item.picker ? `👤 ${item.picker}` : "-";
 
-                  // --- NEW: DISPLAYS "SKIPPED" IF FLAGGED ---
                   if (item.status === "PICKED" && item.pickedQty > 0) {
                       statusHtml = `<span style="color: #4CAF50; font-weight:bold;">🟢 Picked</span>`;
                       rowStyle = "background-color: #f1f8e9;";
                       actionBtn = `<button onclick="printSinglePick('${item.sku}')" class="orange-btn">🖨️ Print</button>`;
                       hasPickedItems = true;
                   } else if (item.status === "SKIPPED" || (item.status === "PICKED" && item.pickedQty === 0)) {
-                      statusHtml = `<span style="color: #757575; font-weight:bold;">⏭️ Skipped</span>`;
+                      statusHtml = `<span style="color: #9e9e9e; font-weight:bold;">⏭️ Skipped</span>`;
                       rowStyle = "background-color: #f5f5f5;";
                       pQtyStr = "<b>0</b>";
                   } else if (item.status === "OUT_OF_STOCK") {
@@ -1337,7 +1337,6 @@
           setTimeout(() => inputBar.focus(), 100);
       }
 
-      // --- MODERN SKIP & CANCEL CONFIRMATION ENGINE ---
       function requestSkipLoc() {
           pendingActionType = 'skip_loc';
           document.getElementById('action-confirm-title').innerText = "Skip Location?";
@@ -1378,7 +1377,7 @@
               if (currentPickLocIndex + 1 >= activePickList[currentPickSkuIndex].locations.length) { finishCurrentSku(); } 
               else { currentPickLocIndex++; renderNextPickStep(); }
           } else if (pendingActionType === 'skip_sku') {
-              playScanSound(); finishCurrentSku(true); // Flag as skipped
+              playScanSound(); finishCurrentSku(true);
           } else if (pendingActionType === 'cancel_pick') {
               switchToPickRequest();
           }
@@ -1390,7 +1389,7 @@
           let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.total, 0);
           
           let singlePickLog = [{ 
-              sku: skuItem.sku, totalQty: totalPicked, picks: [...currentPickedLog], isSkipped: isSkipped
+              sku: skuItem.sku, totalQty: totalPicked, picks: [...currentPickedLog], isSkipped: isSkipped 
           }];
 
           const reqId = document.getElementById('pick-req-id-display').innerText;
