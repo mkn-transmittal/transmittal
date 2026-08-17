@@ -354,11 +354,11 @@
         </div>
         
         <div style="display: flex; gap: 10px; margin-top: 10px;">
-            <button onclick="skipCurrentPickLocation()" class="orange-btn" style="flex: 1; padding: 15px; font-size: 15px;" id="pick-skip-btn">⏭️ Skip Loc</button>
-            <button onclick="skipCurrentSku()" class="btn-error" style="flex: 1; padding: 15px; font-size: 15px; background-color: #757575;" id="pick-skip-sku-btn">⏭️ Skip SKU</button>
+            <button onclick="requestSkipLoc()" class="orange-btn" style="flex: 1; padding: 15px; font-size: 15px; border-radius: 8px;" id="pick-skip-btn">⏭️ Skip Loc</button>
+            <button onclick="requestSkipSku()" class="btn-error" style="flex: 1; padding: 15px; font-size: 15px; background-color: #757575; border-radius: 8px;" id="pick-skip-sku-btn">⏭️ Skip SKU</button>
         </div>
         <div style="display: flex; gap: 10px; margin-top: 10px;">
-            <button onclick="cancelActivePicking()" class="btn-error" style="width: 100%; padding: 15px; font-size: 15px;">✖️ Cancel Pick</button>
+            <button onclick="requestCancelPick()" class="btn-error" style="width: 100%; padding: 15px; font-size: 15px; border-radius: 8px;">✖️ Cancel Pick</button>
         </div>
     </div>
 
@@ -553,6 +553,19 @@
         </div>
     </div>
 
+    <!-- ACTION CONFIRMATION MODAL (MODERN SKIP/CANCEL) -->
+    <div class="modal-overlay" id="action-confirm-modal">
+        <div class="modal-card">
+            <div class="modal-icon-success" id="action-confirm-icon" style="color: #ff9800;">⏭️</div>
+            <div class="success-title" id="action-confirm-title" style="color: #ff9800;">Are you sure?</div>
+            <p id="action-confirm-desc" style="color: #666; margin-bottom: 25px; line-height: 1.5; font-size: 15px;">Description goes here.</p>
+            <div class="modal-btn-group">
+                <button class="btn-reentry" style="background-color: #9e9e9e; color: white;" onclick="closeAllModals()">No, Go Back</button>
+                <button class="btn-print" id="action-confirm-btn" onclick="confirmPendingAction()">Yes, Proceed</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ERROR MODAL -->
     <div class="modal-overlay" id="error-modal">
         <div class="modal-card">
@@ -614,6 +627,8 @@
       let remainingTargetQty = 0;
       let currentPickedLog = [];
       let activePickerName = "";
+
+      let pendingActionType = "";
 
       // --- GLOBAL BARCODE LISTENER FOR MAGIC PRINT ---
       let globalBarcodeBuffer = "";
@@ -687,18 +702,10 @@
           }, 300);
       }
 
-      // --- MOBILE CAMERA CONTINUOUS LOGIC ---
-      let html5QrCode;
-      let currentTargetInput = "";
-      let lastScannedText = "";
-      let lastScanTime = 0;
-
       function openCamera(inputId) {
           currentTargetInput = inputId;
           document.getElementById('camera-modal').style.display = 'flex';
-          
           if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
-          
           html5QrCode.start(
               { facingMode: "environment" }, 
               { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -724,7 +731,6 @@
           const input = document.getElementById(currentTargetInput);
           if (!input) return;
           input.value = text;
-          
           const mockEvent = { key: 'Enter', preventDefault: () => {} };
           
           if (currentTargetInput === 'sku-search') handleKeyNavigation(mockEvent, 'sku-suggestions');
@@ -746,6 +752,7 @@
           document.getElementById('reprint-modal').style.display = 'none';
           document.getElementById('void-auth-modal').style.display = 'none';
           document.getElementById('picker-auth-modal').style.display = 'none';
+          document.getElementById('action-confirm-modal').style.display = 'none';
           document.getElementById('error-modal').style.display = 'none';
           closeCamera(); 
       }
@@ -894,7 +901,6 @@
           masterSkuData = []; masterStaffData = []; masterOpsData = []; globalPickListCache = [];
           document.getElementById('admin-password').value = ""; document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
           document.getElementById('scanner-request-input').value = "";
-          
           hideAllSections(); closeAllModals(); lockScannerInputs();
           document.getElementById('admin-gate').style.display = 'block';
           showToast("Successfully Logged Out", "success");
@@ -929,7 +935,6 @@
           pendingPayload = null; closeAllModals(); setTimeout(() => document.getElementById('sku-search').focus(), 10);
       }
 
-      // --- SMART AUTHENTICATION (ADMIN) ---
       async function checkPassword() {
         const pass = document.getElementById('admin-password').value;
         if(!pass) return;
@@ -949,7 +954,6 @@
         } catch(e) { hideToast(); document.getElementById('btn-login').disabled = false; showToast("Server Error", "error"); }
       }
 
-      // --- NEW SEARCHABLE REQUEST ID LOGIC ---
       async function loadRequestIds() {
         try {
             const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
@@ -1053,7 +1057,6 @@
             }
             playErrorSound(); document.getElementById(inputId).value = ""; return;
         }
-
         const box = document.getElementById(boxId);
         if (box.style.display !== 'block') return; 
         const items = box.getElementsByClassName('suggestion-item');
@@ -1115,22 +1118,13 @@
           try {
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
               playSuccessSubmitSound(); closeAllModals();
-              
-              printLabelHTML([{
-                  id: 't1', date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString(),
-                  boxNum: response.boxNumber, reqId: pendingPayload.requestId, sku: pendingPayload.sku,
-                  qty: pendingPayload.qty, barcode: pendingPayload.barcode, c1: pendingPayload.c1, c2: "-"
-              }]);
-              
+              printLabelHTML([{ id: 't1', date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString(), boxNum: response.boxNumber, reqId: pendingPayload.requestId, sku: pendingPayload.sku, qty: pendingPayload.qty, barcode: pendingPayload.barcode, c1: pendingPayload.c1, c2: "-" }]);
               document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
               btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = "";
               setTimeout(() => document.getElementById('sku-search').focus(), 10);
-          } catch(e) {
-              showToast("Failed to save entry.", "error"); btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = 'Error. Click Print to retry.';
-          }
+          } catch(e) { showToast("Failed to save entry.", "error"); btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = 'Error. Click Print to retry.'; }
       }
 
-      // --- REQUEST REPLENISH (EXCEL UPLOAD) ---
       function switchToReplenish() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           hideAllSections(); document.getElementById('replenish-section').style.display = 'block';
@@ -1145,10 +1139,8 @@
           const file = fileInput.files[0]; const reader = new FileReader();
           reader.onload = async function(e) {
               try {
-                  const data = new Uint8Array(e.target.result);
-                  const workbook = XLSX.read(data, {type: 'array'});
-                  const firstSheetName = workbook.SheetNames[0];
-                  const worksheet = workbook.Sheets[firstSheetName];
+                  const data = new Uint8Array(e.target.result); const workbook = XLSX.read(data, {type: 'array'});
+                  const firstSheetName = workbook.SheetNames[0]; const worksheet = workbook.Sheets[firstSheetName];
                   const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
                   
                   let items = [];
@@ -1157,9 +1149,7 @@
                       if (sku && qty && !isNaN(qty)) items.push({ sku: String(sku).trim(), qty: qty });
                   }
                   if(items.length === 0) return showToast("No valid SKUs/Quantities found in Excel.", "error");
-                  
                   items.sort((a, b) => String(a.sku).localeCompare(String(b.sku), undefined, { numeric: true, sensitivity: 'base' }));
-
                   showToast("Uploading data...", "loading");
                   try {
                       await apiCall('savePickRequest', { requestId: reqId, items: items });
@@ -1176,7 +1166,6 @@
           reader.readAsArrayBuffer(file);
       }
 
-      // --- PICK REQUEST DASHBOARD LOGIC ---
       function switchToPickRequest() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           hideAllSections(); document.getElementById('pick-request-section').style.display = 'flex';
@@ -1211,20 +1200,23 @@
                   startBtn.style.display = 'none'; bulkBtn.style.display = 'none'; return;
               }
               
-              let hasPickableItems = false;
-              let hasPickedItems = false;
-
+              let hasPickableItems = false; let hasPickedItems = false;
               items.forEach(item => {
                   let statusHtml = ""; let rowStyle = ""; let actionBtn = "-";
                   let boxStr = item.boxNum ? `<b>Box #${item.boxNum}</b>` : "-";
                   let pQtyStr = item.pickedQty ? `<b>${item.pickedQty}</b>` : "-";
                   let pickerStr = item.picker ? `👤 ${item.picker}` : "-";
 
-                  if (item.status === "PICKED") {
+                  // --- NEW: DISPLAYS "SKIPPED" IF FLAGGED ---
+                  if (item.status === "PICKED" && item.pickedQty > 0) {
                       statusHtml = `<span style="color: #4CAF50; font-weight:bold;">🟢 Picked</span>`;
                       rowStyle = "background-color: #f1f8e9;";
                       actionBtn = `<button onclick="printSinglePick('${item.sku}')" class="orange-btn">🖨️ Print</button>`;
                       hasPickedItems = true;
+                  } else if (item.status === "SKIPPED" || (item.status === "PICKED" && item.pickedQty === 0)) {
+                      statusHtml = `<span style="color: #757575; font-weight:bold;">⏭️ Skipped</span>`;
+                      rowStyle = "background-color: #f5f5f5;";
+                      pQtyStr = "<b>0</b>";
                   } else if (item.status === "OUT_OF_STOCK") {
                       statusHtml = `<span style="color: #D32F2F; font-weight:bold;">🔴 Out of Stock</span>`;
                       rowStyle = "background-color: #ffebee; opacity: 0.8;";
@@ -1255,7 +1247,6 @@
           const reqId = document.getElementById('pick-request-input').value.trim();
           const item = globalPickListCache.find(i => i.sku === sku);
           if (!item || !item.picks || item.picks.length === 0) return;
-          
           let configs = item.picks.map((p, idx) => ({
               id: 's' + idx, date: item.date, boxNum: p.boxNum, reqId: reqId,
               sku: item.sku, qty: `${p.total} (${p.boxes}x${p.pcs})`, barcode: item.barcode, c1: item.picker, c2: p.loc
@@ -1265,9 +1256,8 @@
 
       function bulkPrintPicked() {
           const reqId = document.getElementById('pick-request-input').value.trim();
-          const pickedItems = globalPickListCache.filter(item => item.status === 'PICKED');
+          const pickedItems = globalPickListCache.filter(item => item.status === 'PICKED' && item.pickedQty > 0);
           if (pickedItems.length === 0) return;
-          
           let configs = [];
           pickedItems.forEach((item, iIdx) => {
               if (item.picks) {
@@ -1282,10 +1272,6 @@
           printLabelHTML(configs);
       }
 
-      // ==========================================
-      // --- WMS DIRECTED PICKING ENGINE ---
-      // ==========================================
-
       function initiatePickProcess() {
           if (!masterStaffData || masterStaffData.length === 0) {
               apiCall('getStaffList').then(res => { masterStaffData = res; openPickerAuthModal(); }).catch(e => showToast("Database error.", "error"));
@@ -1293,8 +1279,7 @@
       }
 
       function openPickerAuthModal() {
-          closeAllModals();
-          document.getElementById('picker-auth-input').value = ""; 
+          closeAllModals(); document.getElementById('picker-auth-input').value = ""; 
           document.getElementById('picker-auth-modal').style.display = 'flex';
           setTimeout(() => document.getElementById('picker-auth-input').focus(), 100);
       }
@@ -1304,60 +1289,32 @@
               clearTimeout(opsScannerTimer); e.preventDefault(); 
               const input = document.getElementById('picker-auth-input').value.trim().toLowerCase();
               const match = masterStaffData.find(row => String(row[0]).toLowerCase() === input || String(row[1] || "").toLowerCase() === input);
-              
-              if (match) {
-                  playSuccessReceiveSound(); closeAllModals();
-                  activePickerName = match[0];
-                  startDirectedPicking();
-              } else {
-                  playErrorSound(); document.getElementById('picker-auth-input').value = ""; 
-                  showToast("Invalid Badge.", "error");
-              }
+              if (match) { playSuccessReceiveSound(); closeAllModals(); activePickerName = match[0]; startDirectedPicking(); } 
+              else { playErrorSound(); document.getElementById('picker-auth-input').value = ""; showToast("Invalid Badge.", "error"); }
               return;
           }
-          clearTimeout(opsScannerTimer);
-          opsScannerTimer = setTimeout(() => { document.getElementById('picker-auth-input').value = ""; }, 500);
+          clearTimeout(opsScannerTimer); opsScannerTimer = setTimeout(() => { document.getElementById('picker-auth-input').value = ""; }, 500);
       }
 
       function startDirectedPicking() {
-          activePickList = globalPickListCache.filter(item => item.status !== 'PICKED');
-          if (activePickList.length === 0) {
-              showToast("All items are already picked or out of stock!", "success"); return;
-          }
-
-          hideAllSections();
-          document.getElementById('active-picking-section').style.display = 'block';
-          
+          activePickList = globalPickListCache.filter(item => item.status !== 'PICKED' && item.status !== 'SKIPPED');
+          if (activePickList.length === 0) { showToast("All items are already picked or out of stock!", "success"); return; }
+          hideAllSections(); document.getElementById('active-picking-section').style.display = 'block';
           const reqId = document.getElementById('pick-request-input').value.trim();
-          document.getElementById('pick-req-id-display').innerText = reqId;
-          document.getElementById('pick-staff-display').innerText = activePickerName;
-          
-          currentPickSkuIndex = 0; currentPickLocIndex = 0;
-          currentPickedLog = []; remainingTargetQty = 0;
-          
+          document.getElementById('pick-req-id-display').innerText = reqId; document.getElementById('pick-staff-display').innerText = activePickerName;
+          currentPickSkuIndex = 0; currentPickLocIndex = 0; currentPickedLog = []; remainingTargetQty = 0;
           renderNextPickStep();
       }
 
       function renderNextPickStep() {
           if (currentPickSkuIndex >= activePickList.length) {
               document.getElementById('active-picking-section').style.display = 'none';
-              playSuccessReceiveSound();
-              showToast("All SKUs Processed!", "success");
-              setTimeout(() => switchToPickRequest(), 1500);
-              return;
+              playSuccessReceiveSound(); showToast("All SKUs Processed!", "success");
+              setTimeout(() => switchToPickRequest(), 1500); return;
           }
-          
           const skuItem = activePickList[currentPickSkuIndex];
-          
-          if (!skuItem.locations || skuItem.locations.length === 0) {
-              finishCurrentSku(); return;
-          }
-
-          if (currentPickLocIndex === 0 && remainingTargetQty === 0) {
-              remainingTargetQty = parseInt(skuItem.targetQty, 10);
-              currentPickedLog = [];
-          }
-
+          if (!skuItem.locations || skuItem.locations.length === 0) { finishCurrentSku(); return; }
+          if (currentPickLocIndex === 0 && remainingTargetQty === 0) { remainingTargetQty = parseInt(skuItem.targetQty, 10); currentPickedLog = []; }
           const locItem = skuItem.locations[currentPickLocIndex];
           
           document.getElementById('pick-sku-name').innerText = skuItem.sku;
@@ -1376,29 +1333,72 @@
           inputBoxes.value = ""; inputBoxes.disabled = true; inputBoxes.className = "pick-input-box";
           inputPcs.value = ""; inputPcs.disabled = true; inputPcs.className = "pick-input-box";
           
-          document.getElementById('pick-skip-btn').disabled = false;
-          document.getElementById('pick-skip-sku-btn').disabled = false;
-          
+          document.getElementById('pick-skip-btn').disabled = false; document.getElementById('pick-skip-sku-btn').disabled = false;
           setTimeout(() => inputBar.focus(), 100);
       }
 
-      async function finishCurrentSku() {
+      // --- MODERN SKIP & CANCEL CONFIRMATION ENGINE ---
+      function requestSkipLoc() {
+          pendingActionType = 'skip_loc';
+          document.getElementById('action-confirm-title').innerText = "Skip Location?";
+          document.getElementById('action-confirm-title').style.color = "#ff9800";
+          document.getElementById('action-confirm-icon').innerText = "📍";
+          document.getElementById('action-confirm-desc').innerText = "Are you sure you want to skip this specific bin location?";
+          document.getElementById('action-confirm-btn').innerText = "Yes, Skip Location";
+          document.getElementById('action-confirm-btn').style.backgroundColor = "#ff9800";
+          closeAllModals(); document.getElementById('action-confirm-modal').style.display = 'flex';
+      }
+
+      function requestSkipSku() {
+          pendingActionType = 'skip_sku';
+          document.getElementById('action-confirm-title').innerText = "Skip Entire SKU?";
+          document.getElementById('action-confirm-title').style.color = "#757575";
+          document.getElementById('action-confirm-icon').innerText = "⏭️";
+          document.getElementById('action-confirm-desc').innerText = "It will be marked as skipped with whatever you've picked so far.";
+          document.getElementById('action-confirm-btn').innerText = "Yes, Skip SKU";
+          document.getElementById('action-confirm-btn').style.backgroundColor = "#757575";
+          closeAllModals(); document.getElementById('action-confirm-modal').style.display = 'flex';
+      }
+
+      function requestCancelPick() {
+          pendingActionType = 'cancel_pick';
+          document.getElementById('action-confirm-title').innerText = "Cancel Picking?";
+          document.getElementById('action-confirm-title').style.color = "#F44336";
+          document.getElementById('action-confirm-icon').innerText = "✖️";
+          document.getElementById('action-confirm-desc').innerText = "Current SKU progress will be lost and not saved.";
+          document.getElementById('action-confirm-btn').innerText = "Yes, Cancel Pick";
+          document.getElementById('action-confirm-btn').style.backgroundColor = "#F44336";
+          closeAllModals(); document.getElementById('action-confirm-modal').style.display = 'flex';
+      }
+
+      function confirmPendingAction() {
+          closeAllModals();
+          if (pendingActionType === 'skip_loc') {
+              playScanSound();
+              if (currentPickLocIndex + 1 >= activePickList[currentPickSkuIndex].locations.length) { finishCurrentSku(); } 
+              else { currentPickLocIndex++; renderNextPickStep(); }
+          } else if (pendingActionType === 'skip_sku') {
+              playScanSound(); finishCurrentSku(true); // Flag as skipped
+          } else if (pendingActionType === 'cancel_pick') {
+              switchToPickRequest();
+          }
+          pendingActionType = "";
+      }
+
+      async function finishCurrentSku(isSkipped = false) {
           const skuItem = activePickList[currentPickSkuIndex];
           let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.total, 0);
           
           let singlePickLog = [{ 
-              sku: skuItem.sku, totalQty: totalPicked, picks: [...currentPickedLog] 
+              sku: skuItem.sku, totalQty: totalPicked, picks: [...currentPickedLog], isSkipped: isSkipped
           }];
 
           const reqId = document.getElementById('pick-req-id-display').innerText;
           showToast(`Saving ${skuItem.sku}...`, "loading");
           
-          document.getElementById('pick-skip-btn').disabled = true;
-          document.getElementById('pick-skip-sku-btn').disabled = true;
-          document.getElementById('pick-scan-barcode').disabled = true;
-          document.getElementById('pick-scan-loc').disabled = true;
-          document.getElementById('pick-enter-boxes').disabled = true;
-          document.getElementById('pick-enter-pcs').disabled = true;
+          document.getElementById('pick-skip-btn').disabled = true; document.getElementById('pick-skip-sku-btn').disabled = true;
+          document.getElementById('pick-scan-barcode').disabled = true; document.getElementById('pick-scan-loc').disabled = true;
+          document.getElementById('pick-enter-boxes').disabled = true; document.getElementById('pick-enter-pcs').disabled = true;
 
           try {
               await apiCall('savePickedItems', { requestId: reqId, staffName: activePickerName, items: singlePickLog });
@@ -1410,113 +1410,60 @@
       }
 
       function handlePickBarcodeScan(e) {
-          if (e.key !== "Enter") return;
-          e.preventDefault();
-          const skuItem = activePickList[currentPickSkuIndex];
-          const inputBar = document.getElementById('pick-scan-barcode');
-          
+          if (e.key !== "Enter") return; e.preventDefault();
+          const skuItem = activePickList[currentPickSkuIndex]; const inputBar = document.getElementById('pick-scan-barcode');
           if (inputBar.value.trim().toLowerCase() === skuItem.barcode.toLowerCase() || inputBar.value.trim().toLowerCase() === skuItem.sku.toLowerCase()) {
-              playMatchSound();
-              inputBar.className = "pick-input-box success"; inputBar.disabled = true;
-              const inputLoc = document.getElementById('pick-scan-loc');
-              inputLoc.disabled = false; setTimeout(() => inputLoc.focus(), 10);
+              playMatchSound(); inputBar.className = "pick-input-box success"; inputBar.disabled = true;
+              const inputLoc = document.getElementById('pick-scan-loc'); inputLoc.disabled = false; setTimeout(() => inputLoc.focus(), 10);
           } else {
-              playErrorSound(); inputBar.value = ""; inputBar.className = "pick-input-box error";
-              setTimeout(() => inputBar.className = "pick-input-box", 500);
+              playErrorSound(); inputBar.value = ""; inputBar.className = "pick-input-box error"; setTimeout(() => inputBar.className = "pick-input-box", 500);
           }
       }
 
       function handlePickLocationScan(e) {
-          if (e.key !== "Enter") return;
-          e.preventDefault();
-          const locItem = activePickList[currentPickSkuIndex].locations[currentPickLocIndex];
-          const inputLoc = document.getElementById('pick-scan-loc');
-          
+          if (e.key !== "Enter") return; e.preventDefault();
+          const locItem = activePickList[currentPickSkuIndex].locations[currentPickLocIndex]; const inputLoc = document.getElementById('pick-scan-loc');
           if (inputLoc.value.trim().toLowerCase() === locItem.loc.toLowerCase()) {
-              playMatchSound();
-              inputLoc.className = "pick-input-box success"; inputLoc.disabled = true;
-              
-              const inputBoxes = document.getElementById('pick-enter-boxes');
-              const inputPcs = document.getElementById('pick-enter-pcs');
-              inputBoxes.disabled = false; inputPcs.disabled = false;
-              
-              setTimeout(() => inputBoxes.focus(), 10);
+              playMatchSound(); inputLoc.className = "pick-input-box success"; inputLoc.disabled = true;
+              const inputBoxes = document.getElementById('pick-enter-boxes'); const inputPcs = document.getElementById('pick-enter-pcs');
+              inputBoxes.disabled = false; inputPcs.disabled = false; setTimeout(() => inputBoxes.focus(), 10);
               document.getElementById('pick-skip-btn').disabled = true; 
           } else {
-              playErrorSound(); inputLoc.value = ""; inputLoc.className = "pick-input-box error";
-              setTimeout(() => inputLoc.className = "pick-input-box", 500);
+              playErrorSound(); inputLoc.value = ""; inputLoc.className = "pick-input-box error"; setTimeout(() => inputLoc.className = "pick-input-box", 500);
           }
       }
 
       function handlePickBoxesEnter(e) {
-          if (e.key !== "Enter") return;
-          e.preventDefault();
-          const inputBoxes = document.getElementById('pick-enter-boxes');
+          if (e.key !== "Enter") return; e.preventDefault(); const inputBoxes = document.getElementById('pick-enter-boxes');
           if (inputBoxes.value.trim() === "" || parseInt(inputBoxes.value, 10) <= 0) { playErrorSound(); return; }
-          playScanSound();
-          document.getElementById('pick-enter-pcs').focus();
+          playScanSound(); document.getElementById('pick-enter-pcs').focus();
       }
 
       function handlePickPcsEnter(e) {
-          if (e.key !== "Enter") return;
-          e.preventDefault();
-          
-          const inputBoxes = document.getElementById('pick-enter-boxes');
-          const inputPcs = document.getElementById('pick-enter-pcs');
-          const boxes = parseInt(inputBoxes.value.trim(), 10);
-          const pcs = parseInt(inputPcs.value.trim(), 10);
-          
-          if (isNaN(boxes) || isNaN(pcs) || boxes <= 0 || pcs < 0) {
-              playErrorSound(); inputPcs.value = ""; return;
-          }
+          if (e.key !== "Enter") return; e.preventDefault();
+          const inputBoxes = document.getElementById('pick-enter-boxes'); const inputPcs = document.getElementById('pick-enter-pcs');
+          const boxes = parseInt(inputBoxes.value.trim(), 10); const pcs = parseInt(inputPcs.value.trim(), 10);
+          if (isNaN(boxes) || isNaN(pcs) || boxes <= 0 || pcs < 0) { playErrorSound(); inputPcs.value = ""; return; }
 
-          const totalPick = boxes * pcs;
-          playSuccessSubmitSound();
-          
-          const skuItem = activePickList[currentPickSkuIndex];
-          const locItem = skuItem.locations[currentPickLocIndex];
+          const totalPick = boxes * pcs; playSuccessSubmitSound();
+          const locItem = activePickList[currentPickSkuIndex].locations[currentPickLocIndex];
 
           currentPickedLog.push({ loc: locItem.loc, boxes: boxes, pcs: pcs, total: totalPick });
           remainingTargetQty -= totalPick;
 
-          if (remainingTargetQty <= 0) {
-              finishCurrentSku();
-          } else {
-              // Target not met. Keep them at the same location to enter another box config!
-              document.getElementById('pick-rem-qty').innerText = remainingTargetQty;
-              inputBoxes.value = ""; inputPcs.value = "";
-              setTimeout(() => inputBoxes.focus(), 100);
+          if (remainingTargetQty <= 0) { finishCurrentSku(); } 
+          else {
+              document.getElementById('pick-rem-qty').innerText = remainingTargetQty; inputBoxes.value = ""; inputPcs.value = ""; setTimeout(() => inputBoxes.focus(), 100);
           }
       }
 
-      function skipCurrentPickLocation() {
-          playScanSound();
-          if (currentPickLocIndex + 1 >= activePickList[currentPickSkuIndex].locations.length) finishCurrentSku();
-          else { currentPickLocIndex++; renderNextPickStep(); }
-      }
-
-      function skipCurrentSku() {
-          if(confirm("Skip this entire SKU? It will be marked as finished with whatever you've picked so far.")) {
-              playScanSound(); finishCurrentSku();
-          }
-      }
-
-      function cancelActivePicking() {
-          if(confirm("Are you sure you want to cancel this pick? Current SKU progress will be lost.")) switchToPickRequest();
-      }
-
-      // --- DASHBOARD FRONTEND FILTERS ---
       async function switchToDashboard() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           hideAllSections(); document.getElementById('dashboard-section').style.display = 'flex';
-          
           try {
               const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
-              const datalist = document.getElementById('dashboard-req-list');
-              datalist.innerHTML = '';
-              requests.forEach(r => { 
-                  if (r && r !== "undefined" && r.trim() !== "") datalist.innerHTML += `<option value="${r}">`; 
-              });
+              const datalist = document.getElementById('dashboard-req-list'); datalist.innerHTML = '';
+              requests.forEach(r => { if (r && r !== "undefined" && r.trim() !== "") datalist.innerHTML += `<option value="${r}">`; });
               loadDashboardData();
           } catch(e) { showToast("Failed to load dropdown", "error"); }
       }
@@ -1524,7 +1471,6 @@
       function switchToScanner() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           hideAllSections(); document.getElementById('scanner-section').style.display = 'block';
-          
           if(activeRequestId && activeRequestId !== "undefined") {
               document.getElementById('scanner-request-input').value = activeRequestId;
               unlockScannerInputs(); setTimeout(() => document.getElementById('sku-search').focus(), 10);
@@ -1532,10 +1478,8 @@
       }
 
       async function loadDashboardData() {
-          const reqInput = document.getElementById('dashboard-request-input').value.trim();
-          const reqId = reqInput === "" ? "ALL" : reqInput;
+          const reqInput = document.getElementById('dashboard-request-input').value.trim(); const reqId = reqInput === "" ? "ALL" : reqInput;
           showToast("Loading Logs...", "loading");
-
           try {
               const logs = await apiCall('getDashboardLogs', { sheetName: activeSheetName, requestId: reqId });
               hideToast(); currentDashboardLogs = logs || []; applyFilters(); 
@@ -1544,41 +1488,30 @@
 
       function applyFilters() {
           const tbody = document.getElementById('dashboard-table-body');
-          const dateFilter = document.getElementById('filter-date').value; 
-          const searchFilter = document.getElementById('filter-search').value.toLowerCase();
-
+          const dateFilter = document.getElementById('filter-date').value; const searchFilter = document.getElementById('filter-search').value.toLowerCase();
           tbody.innerHTML = '';
           if (currentDashboardLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #777;">No boxes logged yet.</td></tr>'; return; }
 
           let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId !== "undefined");
-
           if (dateFilter || searchFilter) {
               filteredLogs = filteredLogs.filter(log => {
                   let match = true;
                   if (dateFilter) {
-                      const logDateStr = log.date.split(' ')[0]; 
-                      const [logM, logD, logY] = logDateStr.split('/');
-                      const logDateISO = `${logY}-${logM.padStart(2,'0')}-${logD.padStart(2,'0')}`;
-                      if (logDateISO !== dateFilter) match = false;
+                      const logDateStr = log.date.split(' ')[0]; const [logM, logD, logY] = logDateStr.split('/');
+                      if (`${logY}-${logM.padStart(2,'0')}-${logD.padStart(2,'0')}` !== dateFilter) match = false;
                   }
-                  if (searchFilter && match) {
-                      const searchableString = `${log.sku} ${log.c1} ${log.c2} ${log.requestId} box#${log.boxNum} ${log.lastReprintBy} ${log.receiveBy}`.toLowerCase();
-                      if (!searchableString.includes(searchFilter)) match = false;
-                  }
+                  if (searchFilter && match && !`${log.sku} ${log.c1} ${log.c2} ${log.requestId} box#${log.boxNum} ${log.lastReprintBy} ${log.receiveBy}`.toLowerCase().includes(searchFilter)) match = false;
                   return match;
               });
           }
 
           if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #777;">No matching logs found.</td></tr>'; return; }
-
           filteredLogs.forEach(log => {
               let counters = log.c2 ? `${log.c1} / ${log.c2}` : log.c1;
               let reprintBadge = log.lastReprintBy ? `<span style="font-size: 11px; background: #eee; padding: 2px 6px; border-radius: 4px;">👤 ${log.lastReprintBy}</span>` : `<span style="color:#aaa;">-</span>`;
-              
               let isVoid = log.receiveBy && log.receiveBy.toString().toUpperCase().includes("VOID");
               let rowStyle = isVoid ? "background-color: #ffebee; text-decoration: line-through; opacity: 0.7;" : (log.receiveBy ? "background-color: #f1f8e9;" : "");
               let receiveStatus = isVoid ? `<span style="color: #d32f2f; font-weight:bold;">🚫 ${log.receiveBy}</span>` : (log.receiveBy ? `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${log.receiveBy}</span>` : `<span style="color: #F44336; font-weight:bold;">🔴 Pending</span>`);
-              
               let actionButtons = isVoid ? `<span style="color:#d32f2f; font-weight:bold;">VOID</span>` : 
                   `<div style="display:flex; gap:5px; justify-content:center;">
                       <button onclick="initiateReprint('${log.requestId}', '${log.sku}', '${log.barcode}', '${log.qty}', '${log.boxNum}', '${log.c1}', '${log.c2}', ${log.rowIndex})" class="orange-btn" title="Reprint">🖨️</button>
@@ -1604,8 +1537,7 @@
 
       function initiateReprint(reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex) {
           pendingReprintData = { reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex }; pendingReprintRow = rowIndex;
-          closeAllModals();
-          document.getElementById('reprint-auth-input').value = ""; document.getElementById('reprint-auth-modal').style.display = 'flex';
+          closeAllModals(); document.getElementById('reprint-auth-input').value = ""; document.getElementById('reprint-auth-modal').style.display = 'flex';
           setTimeout(() => document.getElementById('reprint-auth-input').focus(), 100);
       }
 
@@ -1631,8 +1563,7 @@
       }
 
       async function confirmReprintVerification() {
-          closeAllModals();
-          if (!pendingReprintRow || !authorizedReprintStaff) return;
+          closeAllModals(); if (!pendingReprintRow || !authorizedReprintStaff) return;
           showToast("Updating print count...", "loading");
           try {
               await apiCall('incrementPrintCount', { sheetName: activeSheetName, rowIndex: pendingReprintRow, staffName: authorizedReprintStaff });
@@ -1658,8 +1589,7 @@
       }
 
       async function confirmVoidAction(staffName) {
-          if (!pendingVoidRow) return;
-          showToast("Voiding Box...", "loading");
+          if (!pendingVoidRow) return; showToast("Voiding Box...", "loading");
           try {
               await apiCall('voidBox', { sheetName: activeSheetName, rowIndex: pendingVoidRow, staffName: staffName });
               pendingVoidRow = null; loadDashboardData(); showToast("Box successfully voided!", "success");
