@@ -1601,6 +1601,162 @@
               pendingVoidRow = null; loadDashboardData(); showToast("Box successfully voided!", "success");
           } catch(e) { showToast("Failed to void box.", "error"); }
       }
+
+       // ==========================================
+      // --- LIGHTNING-FAST RECEIVING MODULE ---
+      // ==========================================
+      async function switchToReceiveLogin() {
+          const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
+          
+          if (!masterOpsData || masterOpsData.length === 0) {
+              try { masterOpsData = await apiCall('getOpsTeam'); } catch(e) {}
+          }
+
+          if (activeOpsName) return switchToReceiveMain();
+
+          hideAllSections();
+          document.getElementById('receive-login-section').style.display = 'block';
+          setTimeout(() => document.getElementById('ops-passkey').focus(), 100);
+      }
+
+      function handleOpsLoginScan(e) {
+          if (e.key === 'Enter') {
+              clearTimeout(opsScannerTimer);
+              e.preventDefault();
+              const passkey = document.getElementById('ops-passkey').value.trim();
+              document.getElementById('ops-passkey').value = ""; 
+              
+              const match = masterOpsData.find(row => String(row[1]).toLowerCase() === passkey.toLowerCase());
+              if (match) {
+                  activeOpsName = match[0];
+                  sessionStorage.setItem("activeOpsName", activeOpsName);
+                  playSuccessReceiveSound();
+                  showToast(`Welcome, ${activeOpsName}!`, "success");
+                  switchToReceiveMain();
+              } else {
+                  playErrorSound();
+                  showToast("Invalid Ops Passkey!", "error");
+              }
+              return;
+          }
+          clearTimeout(opsScannerTimer);
+          opsScannerTimer = setTimeout(() => { document.getElementById('ops-passkey').value = ""; }, 500);
+      }
+
+      async function switchToReceiveMain() {
+          hideAllSections();
+          document.getElementById('receive-dashboard-section').style.display = 'flex';
+          document.getElementById('active-ops-label').innerText = activeOpsName;
+
+          try {
+              const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
+              const datalist = document.getElementById('receive-req-list');
+              datalist.innerHTML = '';
+              requests.forEach(r => { 
+                  if (r && r !== "undefined" && r.trim() !== "") datalist.innerHTML += `<option value="${r}">`; 
+              });
+          } catch(e) { showToast("Failed to load Request IDs", "error"); }
+      }
+
+      async function loadReceiveDashboardData() {
+          const reqId = document.getElementById('receive-request-input').value.trim();
+          if(!reqId || reqId === "undefined") return;
+
+          showToast("Loading Checklist...", "loading");
+          try {
+              const logs = await apiCall('getDashboardLogs', { sheetName: activeSheetName, requestId: reqId });
+              hideToast(); currentDashboardLogs = logs || []; renderReceiveChecklist();
+              setTimeout(() => document.getElementById('receive-box-scan').focus(), 100);
+          } catch(e) { hideToast(); showToast("Failed to load checklist", "error"); }
+      }
+
+      function renderReceiveChecklist() {
+          const tbody = document.getElementById('receive-table-body'); tbody.innerHTML = '';
+          
+          let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId !== "undefined");
+          
+          if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">No boxes found for this request.</td></tr>'; return; }
+
+          filteredLogs.forEach(log => {
+              let counters = log.c2 && log.c2 !== "-" ? `${log.c1} / ${log.c2}` : log.c1;
+              let receiveStatus = log.receiveBy ? `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${log.receiveBy}</span>` : `<span style="color: #F44336; font-weight:bold;">🔴 Pending</span>`;
+              let rowStyle = log.receiveBy ? "background-color: #f1f8e9;" : ""; 
+
+              tbody.innerHTML += `
+                  <tr style="${rowStyle}" id="box-row-${log.boxNum}">
+                      <td><b>Box #${log.boxNum}</b></td>
+                      <td>${log.sku}</td>
+                      <td><b>${log.qty}</b></td>
+                      <td>${counters}</td>
+                      <td id="box-status-${log.boxNum}">${receiveStatus}</td>
+                  </tr>
+              `;
+          });
+      }
+
+      function handleBoxReceiveScan(e) {
+          if (e.key === 'Enter') {
+              clearTimeout(receiveScannerTimer);
+              e.preventDefault();
+              const val = document.getElementById('receive-box-scan').value.trim();
+              document.getElementById('receive-box-scan').value = ""; 
+              if (val) processBoxReceiveOptimistic(val);
+              return;
+          }
+          clearTimeout(receiveScannerTimer);
+          receiveScannerTimer = setTimeout(() => { document.getElementById('receive-box-scan').value = ""; }, 500);
+      }
+
+      async function processBoxReceiveOptimistic(scannedVal) {
+          let boxNum = scannedVal.replace(/^BOX-/i, "").trim();
+          if(!boxNum || isNaN(boxNum)) { playErrorSound(); return showToast("Invalid Box Barcode Scanned", "error"); }
+
+          const reqId = document.getElementById('receive-request-input').value.trim();
+          if(!reqId) { playErrorSound(); return showToast("Please select a Request ID first!", "error"); }
+
+          const targetLog = currentDashboardLogs.find(l => String(l.boxNum) === String(boxNum));
+          
+          if (targetLog && targetLog.receiveBy && targetLog.receiveBy.toUpperCase().includes("VOID")) {
+              playErrorSound();
+              if (document.getElementById('camera-modal').style.display === 'flex') return showToast(`ERROR: Box #${boxNum} is VOIDED.`, "error");
+              return triggerErrorModal(`ERROR: Box #${boxNum} has been completely VOIDED. You cannot receive this box.`, "receive-box-scan", true);
+          }
+
+          if (targetLog && targetLog.receiveBy) {
+              playAlarmSound();
+              if (document.getElementById('camera-modal').style.display === 'flex') return showToast(`ALREADY RECEIVED: Box #${boxNum}`, "error");
+              return triggerErrorModal(`Box #${boxNum} was already received by ${targetLog.receiveBy} on ${targetLog.dateReceived || ''}.`, "receive-box-scan", true);
+          }
+
+          if (targetLog) {
+              targetLog.receiveBy = activeOpsName;
+              const statusCell = document.getElementById(`box-status-${boxNum}`);
+              const rowEl = document.getElementById(`box-row-${boxNum}`);
+              if(statusCell) statusCell.innerHTML = `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${activeOpsName}</span>`;
+              if(rowEl) rowEl.style.backgroundColor = "#f1f8e9";
+          }
+          playSuccessReceiveSound();
+          showToast(`Box #${boxNum} Received!`, "success");
+
+          setTimeout(() => document.getElementById('receive-box-scan').focus(), 10);
+
+          try {
+              const res = await apiCall('receiveBox', { sheetName: activeSheetName, requestId: reqId, boxNum: boxNum, opsName: activeOpsName });
+              if (res.error === "ALREADY_RECEIVED") {
+                  playAlarmSound();
+                  loadReceiveDashboardData(); 
+                  
+                  if (document.getElementById('camera-modal').style.display === 'flex') {
+                      showToast(`ALREADY RECEIVED: Box #${boxNum}`, "error");
+                  } else {
+                      triggerErrorModal(`Box #${boxNum} was already received by ${res.receivedBy} on ${res.dateReceived || ''}.`, "receive-box-scan", true);
+                  }
+              }
+          } catch(e) {
+              console.error("Background sync failed:", e);
+          }
+      }
+      
     </script>
   </body>
 </html>
