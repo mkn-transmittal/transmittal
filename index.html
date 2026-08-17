@@ -10,7 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- Mobile Camera Barcode Scanner -->
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <!-- NEW: Excel File Reader (SheetJS) -->
+    <!-- Excel File Reader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <style>
@@ -149,51 +149,37 @@
       .btn-error { background: #F44336; color: white; border: none; padding: 14px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; font-size: 15px; }
 
       /* --- ACTIVE PICKING UI --- */
-      .pick-info-card {
-        background: #f1f8e9; border: 2px solid #4CAF50; border-radius: 8px; padding: 15px; text-align: left; margin-bottom: 20px;
-      }
+      .pick-info-card { background: #f1f8e9; border: 2px solid #4CAF50; border-radius: 8px; padding: 15px; text-align: left; margin-bottom: 20px; }
       .pick-info-card h3 { margin: 0 0 5px 0; color: #2e7d32; font-size: 18px; }
       .pick-info-card p { margin: 5px 0 0 0; color: #555; font-size: 15px; }
-      .pick-input-box {
-        width: 100%; padding: 15px; margin-bottom: 15px; font-size: 18px; font-weight: bold;
-        text-align: center; border: 3px solid #ccc; border-radius: 8px; box-sizing: border-box;
-      }
+      .pick-input-box { width: 100%; padding: 15px; margin-bottom: 15px; font-size: 18px; font-weight: bold; text-align: center; border: 3px solid #ccc; border-radius: 8px; box-sizing: border-box; }
       .pick-input-box.success { border-color: #4CAF50; background-color: #e8f5e9; }
       .pick-input-box.error { border-color: #F44336; background-color: #ffebee; }
       .pick-input-box:disabled { background-color: #f5f5f5; color: #999; }
 
-      .responsive-filter-bar {
-        display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; 
-        background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;
-        flex-wrap: wrap; 
-      }
-      .responsive-filter-item {
-        display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 200px;
-      }
-      .responsive-filter-btn {
-        margin:0; height: 42px; padding: 0 15px; font-size: 14px; width: auto; background-color: #2196F3;
-      }
-      @media (max-width: 600px) {
-        .responsive-filter-item { width: 100%; min-width: 100%; }
-        .responsive-filter-btn { width: 100%; margin-top: 10px; }
-      }
+      .responsive-filter-bar { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 15px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee; flex-wrap: wrap; }
+      .responsive-filter-item { display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 200px; }
+      .responsive-filter-btn { margin:0; height: 42px; padding: 0 15px; font-size: 14px; width: auto; background-color: #2196F3; }
+      @media (max-width: 600px) { .responsive-filter-item { width: 100%; min-width: 100%; } .responsive-filter-btn { width: 100%; margin-top: 10px; } }
 
+      /* --- BULK PRINTING CSS ENGINE --- */
       @media print {
-        html, body { width: 150mm; height: 100mm; margin: 0 !important; padding: 0 !important; background: white !important; overflow: hidden !important; }
+        html, body { width: 150mm; height: auto; margin: 0 !important; padding: 0 !important; background: white !important; }
         body * { visibility: hidden !important; } 
-        #print-section, #print-section * { visibility: visible !important; } 
-        #print-section {
-          display: flex !important; position: fixed !important; left: 0 !important; top: 0 !important;
+        #print-container, #print-container * { visibility: visible !important; } 
+        #print-container { display: block !important; position: absolute !important; left: 0 !important; top: 0 !important; width: 150mm !important; margin: 0 !important; padding: 0 !important; }
+        .thermal-label {
           width: 150mm !important; height: 100mm !important; padding: 6mm !important; margin: 0 !important;
           box-sizing: border-box !important; font-family: Arial, sans-serif !important; color: black !important;
-          flex-direction: column !important; justify-content: space-between !important; background: white !important;
-          page-break-after: avoid !important; page-break-before: avoid !important;
+          display: flex !important; flex-direction: column !important; justify-content: space-between !important;
+          page-break-after: always !important; page-break-inside: avoid !important; background: white !important;
         }
         .container, .dashboard-wrapper, .modal-overlay, .sidebar, .sidebar-overlay, #toast { display: none !important; } 
         @page { size: 150mm 100mm; margin: 0mm; }
       }
     </style>
   </head>
+
   <body>
 
     <div id="toast">Message</div>
@@ -315,20 +301,25 @@
             <button onclick="loadPickRequestData()" class="orange-btn responsive-filter-btn" style="height: 42px;">🔄 Refresh List</button>
             <!-- Start Pick Button -->
             <button onclick="initiatePickProcess()" id="start-pick-btn" class="blue-btn responsive-filter-btn" style="height: 42px; display: none; background-color: #4CAF50;">🛒 Start Picking</button>
+            <!-- Bulk Print Button -->
+            <button onclick="bulkPrintPicked()" id="bulk-print-btn" class="orange-btn responsive-filter-btn" style="height: 42px; display: none; margin-left: auto;">🖨️ Bulk Print Picked</button>
         </div>
 
         <div class="table-responsive">
             <table>
                 <thead>
                     <tr>
-                        <th>Request ID</th>
+                        <th>Box #</th>
                         <th>SKU Name</th>
                         <th>Target Qty</th>
+                        <th>Picked Qty</th>
+                        <th>Picker Name</th>
                         <th>Status</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody id="pick-request-table-body">
-                    <tr><td colspan="4" style="text-align: center; color: #777;">Select a Request ID above to view the pick list.</td></tr>
+                    <tr><td colspan="7" style="text-align: center; color: #777;">Select a Request ID above to view the pick list.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -354,7 +345,13 @@
 
         <input type="text" id="pick-scan-barcode" class="pick-input-box" placeholder="1️⃣ Scan SKU Barcode..." onkeydown="handlePickBarcodeScan(event)" autocomplete="off">
         <input type="text" id="pick-scan-loc" class="pick-input-box" placeholder="2️⃣ Scan Location Barcode..." onkeydown="handlePickLocationScan(event)" autocomplete="off" disabled>
-        <input type="number" id="pick-enter-qty" class="pick-input-box" placeholder="3️⃣ Enter Picked Qty..." onkeydown="handlePickQtyEnter(event)" autocomplete="off" disabled>
+        
+        <!-- NEW MULTI-BOX MULTIPLIER UI -->
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <input type="number" id="pick-enter-boxes" class="pick-input-box" style="margin-bottom: 0;" placeholder="📦 Boxes" onkeydown="handlePickBoxesEnter(event)" autocomplete="off" disabled>
+            <span style="font-size: 24px; font-weight: bold; padding-top: 15px;">X</span>
+            <input type="number" id="pick-enter-pcs" class="pick-input-box" style="margin-bottom: 0;" placeholder="🔢 Pcs/Box" onkeydown="handlePickPcsEnter(event)" autocomplete="off" disabled>
+        </div>
         
         <div style="display: flex; gap: 10px; margin-top: 10px;">
             <button onclick="skipCurrentPickLocation()" class="orange-btn" style="flex: 1; padding: 15px; font-size: 15px;" id="pick-skip-btn">⏭️ Skip Loc</button>
@@ -575,28 +572,8 @@
         </div>
     </div>
 
-    <!-- THERMAL PRINT LAYOUT (150x100mm) -->
-    <div id="print-section" style="display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid black; padding-bottom: 4px; width: 100%;">
-            <div style="display: flex; flex-direction: column;">
-                <span id="print-date" style="font-size: 14px; color: #222;">Date</span>
-                <span id="print-box" style="font-size: 26px; font-weight: bold; margin-top: 4px;">Box #0</span>
-            </div>
-            <div style="text-align: right;">
-                <div id="print-box-qr"></div>
-            </div>
-        </div>
-        <div id="print-request" style="font-size: 16px; font-weight: bold; color: #333; text-align: center; width: 100%; margin-top: 6px;">Request ID: </div>
-        <div id="print-sku" style="font-size: 20px; font-weight: bold; text-align: center; word-wrap: break-word; width: 100%;">SKU NAME</div>
-        <div id="print-qty" style="font-size: 34px; font-weight: bold; text-align: center; width: 100%;">Qty: 0</div>
-        <div style="text-align: center; width: 100%;">
-            <svg id="print-barcode"></svg>
-        </div>
-        <div style="font-size: 15px; display: flex; justify-content: space-between; border-top: 2px solid black; padding-top: 6px; width: 100%;">
-            <span id="print-c1">C1: </span>
-            <span id="print-c2">C2: </span>
-        </div>
-    </div>
+    <!-- DYNAMIC THERMAL PRINT CONTAINER (SUPPORTS BULK MULTI-PAGE PRINTING) -->
+    <div id="print-container" style="display: none;"></div>
 
     <script>
       // ==========================================
@@ -631,6 +608,7 @@
       
       // --- DIRECTED PICKING GLOBAL VARIABLES ---
       let globalPickListCache = [];
+      let activePickList = [];
       let currentPickSkuIndex = 0;
       let currentPickLocIndex = 0;
       let remainingTargetQty = 0;
@@ -664,6 +642,50 @@
               globalBarcodeBuffer = "";
           }
       });
+
+      // --- HTML LABEL RENDERER (SUPPORTS 1x OR BULK PRINTING) ---
+      function printLabelHTML(configs) {
+          let html = "";
+          configs.forEach(cfg => {
+              const dateStr = cfg.date || (new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString());
+              html += `
+              <div class="thermal-label">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid black; padding-bottom: 4px; width: 100%;">
+                      <div style="display: flex; flex-direction: column;">
+                          <span style="font-size: 14px; color: #222;">${dateStr}</span>
+                          <span style="font-size: 26px; font-weight: bold; margin-top: 4px;">Box #${cfg.boxNum}</span>
+                      </div>
+                      <div style="text-align: right;">
+                          <div id="qr-${cfg.id}"></div>
+                      </div>
+                  </div>
+                  <div style="font-size: 16px; font-weight: bold; color: #333; text-align: center; width: 100%; margin-top: 6px;">Request ID: ${cfg.reqId}</div>
+                  <div style="font-size: 20px; font-weight: bold; text-align: center; word-wrap: break-word; width: 100%;">${cfg.sku}</div>
+                  <div style="font-size: 34px; font-weight: bold; text-align: center; width: 100%;">Qty: ${cfg.qty}</div>
+                  <div style="text-align: center; width: 100%;">
+                      <svg id="bc-${cfg.id}"></svg>
+                  </div>
+                  <div style="font-size: 15px; display: flex; justify-content: space-between; border-top: 2px solid black; padding-top: 6px; width: 100%;">
+                      <span>Picker: ${cfg.c1}</span>
+                      <span>Loc: ${cfg.c2}</span>
+                  </div>
+              </div>`;
+          });
+
+          document.getElementById('print-container').innerHTML = html;
+          document.getElementById('print-container').style.display = 'block';
+
+          configs.forEach(cfg => {
+              try { JsBarcode(`#bc-${cfg.id}`, cfg.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); } catch(e){}
+              try { new QRCode(document.getElementById(`qr-${cfg.id}`), { text: "BOX-" + cfg.boxNum, width: 64, height: 64, colorDark: "#000", colorLight: "#fff", correctLevel: QRCode.CorrectLevel.M }); } catch(e){}
+          });
+
+          setTimeout(() => {
+              window.print();
+              document.getElementById('print-container').style.display = 'none';
+              document.getElementById('print-container').innerHTML = '';
+          }, 300);
+      }
 
       // --- MOBILE CAMERA CONTINUOUS LOGIC ---
       let html5QrCode;
@@ -717,7 +739,6 @@
           else if (currentTargetInput === 'pick-scan-loc') handlePickLocationScan(mockEvent);
       }
 
-      // --- MASTER MODAL CONTROLLER ---
       function closeAllModals() {
           clearInterval(countdownTimer); 
           document.getElementById('success-modal').style.display = 'none';
@@ -1094,27 +1115,16 @@
           try {
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
               playSuccessSubmitSound(); closeAllModals();
-              document.getElementById('print-request').innerText = "Request ID: " + pendingPayload.requestId;
-              document.getElementById('print-sku').innerText = pendingPayload.sku;
-              document.getElementById('print-qty').innerText = "Qty: " + pendingPayload.qty;
-              document.getElementById('print-box').innerText = "Box #" + response.boxNumber;
-              document.getElementById('print-c1').innerText = "C1: " + pendingPayload.c1;
-              document.getElementById('print-c2').innerText = "C2: " + pendingPayload.c2;
-              const now = new Date(); document.getElementById('print-date').innerText = now.toLocaleDateString() + " " + now.toLocaleTimeString();
-
-              document.getElementById('print-section').style.display = 'flex'; 
-              try { 
-                  JsBarcode("#print-barcode", pendingPayload.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); 
-                  document.getElementById("print-box-qr").innerHTML = ""; 
-                  new QRCode(document.getElementById("print-box-qr"), { text: "BOX-" + response.boxNumber, width: 64, height: 64, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.M });
-              } catch(e) {}
-
-              setTimeout(() => {
-                  window.print(); document.getElementById('print-section').style.display = 'none';
-                  document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
-                  btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = "";
-                  setTimeout(() => document.getElementById('sku-search').focus(), 10);
-              }, 300);
+              
+              printLabelHTML([{
+                  id: 't1', date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString(),
+                  boxNum: response.boxNumber, reqId: pendingPayload.requestId, sku: pendingPayload.sku,
+                  qty: pendingPayload.qty, barcode: pendingPayload.barcode, c1: pendingPayload.c1, c2: "-"
+              }]);
+              
+              document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
+              btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = "";
+              setTimeout(() => document.getElementById('sku-search').focus(), 10);
           } catch(e) {
               showToast("Failed to save entry.", "error"); btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = 'Error. Click Print to retry.';
           }
@@ -1185,40 +1195,91 @@
       async function loadPickRequestData() {
           const reqId = document.getElementById('pick-request-input').value.trim();
           const startBtn = document.getElementById('start-pick-btn');
-          if (!reqId || reqId === "undefined") { startBtn.style.display = 'none'; return; }
+          const bulkBtn = document.getElementById('bulk-print-btn');
+          if (!reqId || reqId === "undefined") { startBtn.style.display = 'none'; bulkBtn.style.display = 'none'; return; }
           
           showToast("Loading Pick List...", "loading");
           try {
               const items = await apiCall('getPickRequestDetails', { requestId: reqId });
               hideToast();
               
-              globalPickListCache = items; // Store globally for the picking engine
+              globalPickListCache = items; 
               const tbody = document.getElementById('pick-request-table-body'); tbody.innerHTML = '';
               
               if (!items || items.length === 0) {
-                  tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #777;">No active items found for this Request ID.</td></tr>';
-                  startBtn.style.display = 'none'; return;
+                  tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #777;">No active items found for this Request ID.</td></tr>';
+                  startBtn.style.display = 'none'; bulkBtn.style.display = 'none'; return;
               }
               
               let hasPickableItems = false;
+              let hasPickedItems = false;
+
               items.forEach(item => {
-                  let outOfStock = (!item.locations || item.locations.length === 0);
-                  let statusHtml = outOfStock ? `<span style="color: #D32F2F; font-weight:bold;">🔴 Out of Stock</span>` : `<span style="color: #FBC02D; font-weight:bold;">🟡 Pending</span>`;
-                  let rowStyle = outOfStock ? "background-color: #ffebee; opacity: 0.8;" : "";
-                  if (!outOfStock) hasPickableItems = true;
+                  let statusHtml = ""; let rowStyle = ""; let actionBtn = "-";
+                  let boxStr = item.boxNum ? `<b>Box #${item.boxNum}</b>` : "-";
+                  let pQtyStr = item.pickedQty ? `<b>${item.pickedQty}</b>` : "-";
+                  let pickerStr = item.picker ? `👤 ${item.picker}` : "-";
+
+                  if (item.status === "PICKED") {
+                      statusHtml = `<span style="color: #4CAF50; font-weight:bold;">🟢 Picked</span>`;
+                      rowStyle = "background-color: #f1f8e9;";
+                      actionBtn = `<button onclick="printSinglePick('${item.sku}')" class="orange-btn">🖨️ Print</button>`;
+                      hasPickedItems = true;
+                  } else if (item.status === "OUT_OF_STOCK") {
+                      statusHtml = `<span style="color: #D32F2F; font-weight:bold;">🔴 Out of Stock</span>`;
+                      rowStyle = "background-color: #ffebee; opacity: 0.8;";
+                  } else {
+                      statusHtml = `<span style="color: #FBC02D; font-weight:bold;">🟡 Pending</span>`;
+                      hasPickableItems = true;
+                  }
 
                   tbody.innerHTML += `
                       <tr style="${rowStyle}">
-                          <td><span style="background: #eef2f3; padding: 4px 8px; border-radius: 4px; font-weight:bold;">${reqId}</span></td>
+                          <td>${boxStr}</td>
                           <td>${item.sku}</td>
                           <td><b>${item.targetQty}</b></td>
+                          <td>${pQtyStr}</td>
+                          <td>${pickerStr}</td>
                           <td>${statusHtml}</td>
+                          <td>${actionBtn}</td>
                       </tr>
                   `;
               });
 
               startBtn.style.display = hasPickableItems ? 'inline-block' : 'none';
+              bulkBtn.style.display = hasPickedItems ? 'inline-block' : 'none';
           } catch(e) { hideToast(); showToast("Failed to load list.", "error"); }
+      }
+
+      function printSinglePick(sku) {
+          const reqId = document.getElementById('pick-request-input').value.trim();
+          const item = globalPickListCache.find(i => i.sku === sku);
+          if (!item || !item.picks || item.picks.length === 0) return;
+          
+          let configs = item.picks.map((p, idx) => ({
+              id: 's' + idx, date: item.date, boxNum: p.boxNum, reqId: reqId,
+              sku: item.sku, qty: `${p.total} (${p.boxes}x${p.pcs})`, barcode: item.barcode, c1: item.picker, c2: p.loc
+          }));
+          printLabelHTML(configs);
+      }
+
+      function bulkPrintPicked() {
+          const reqId = document.getElementById('pick-request-input').value.trim();
+          const pickedItems = globalPickListCache.filter(item => item.status === 'PICKED');
+          if (pickedItems.length === 0) return;
+          
+          let configs = [];
+          pickedItems.forEach((item, iIdx) => {
+              if (item.picks) {
+                  item.picks.forEach((p, pIdx) => {
+                      configs.push({
+                          id: 'b' + iIdx + pIdx, date: item.date, boxNum: p.boxNum, reqId: reqId,
+                          sku: item.sku, qty: `${p.total} (${p.boxes}x${p.pcs})`, barcode: item.barcode, c1: item.picker, c2: p.loc
+                      });
+                  });
+              }
+          });
+          printLabelHTML(configs);
       }
 
       // ==========================================
@@ -1259,6 +1320,11 @@
       }
 
       function startDirectedPicking() {
+          activePickList = globalPickListCache.filter(item => item.status !== 'PICKED');
+          if (activePickList.length === 0) {
+              showToast("All items are already picked or out of stock!", "success"); return;
+          }
+
           hideAllSections();
           document.getElementById('active-picking-section').style.display = 'block';
           
@@ -1273,7 +1339,7 @@
       }
 
       function renderNextPickStep() {
-          if (currentPickSkuIndex >= globalPickListCache.length) {
+          if (currentPickSkuIndex >= activePickList.length) {
               document.getElementById('active-picking-section').style.display = 'none';
               playSuccessReceiveSound();
               showToast("All SKUs Processed!", "success");
@@ -1281,12 +1347,10 @@
               return;
           }
           
-          const skuItem = globalPickListCache[currentPickSkuIndex];
+          const skuItem = activePickList[currentPickSkuIndex];
           
-          // Skip completely out of stock items, but save them as 0 so they are cleared
           if (!skuItem.locations || skuItem.locations.length === 0) {
-              finishCurrentSku();
-              return;
+              finishCurrentSku(); return;
           }
 
           if (currentPickLocIndex === 0 && remainingTargetQty === 0) {
@@ -1304,11 +1368,13 @@
 
           const inputBar = document.getElementById('pick-scan-barcode');
           const inputLoc = document.getElementById('pick-scan-loc');
-          const inputQty = document.getElementById('pick-enter-qty');
+          const inputBoxes = document.getElementById('pick-enter-boxes');
+          const inputPcs = document.getElementById('pick-enter-pcs');
           
           inputBar.value = ""; inputBar.disabled = false; inputBar.className = "pick-input-box";
           inputLoc.value = ""; inputLoc.disabled = true; inputLoc.className = "pick-input-box";
-          inputQty.value = ""; inputQty.disabled = true; inputQty.className = "pick-input-box";
+          inputBoxes.value = ""; inputBoxes.disabled = true; inputBoxes.className = "pick-input-box";
+          inputPcs.value = ""; inputPcs.disabled = true; inputPcs.className = "pick-input-box";
           
           document.getElementById('pick-skip-btn').disabled = false;
           document.getElementById('pick-skip-sku-btn').disabled = false;
@@ -1316,47 +1382,37 @@
           setTimeout(() => inputBar.focus(), 100);
       }
 
-      // --- INDIVIDUAL SKU SAVING (OPTIMISTIC) ---
       async function finishCurrentSku() {
-          const skuItem = globalPickListCache[currentPickSkuIndex];
-          let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.qty, 0);
+          const skuItem = activePickList[currentPickSkuIndex];
+          let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.total, 0);
           
           let singlePickLog = [{ 
-              sku: skuItem.sku, 
-              totalQty: totalPicked, 
-              locations: [...currentPickedLog] 
+              sku: skuItem.sku, totalQty: totalPicked, picks: [...currentPickedLog] 
           }];
 
           const reqId = document.getElementById('pick-req-id-display').innerText;
-          
           showToast(`Saving ${skuItem.sku}...`, "loading");
           
-          // Disable inputs during save to prevent double clicks
           document.getElementById('pick-skip-btn').disabled = true;
           document.getElementById('pick-skip-sku-btn').disabled = true;
           document.getElementById('pick-scan-barcode').disabled = true;
           document.getElementById('pick-scan-loc').disabled = true;
-          document.getElementById('pick-enter-qty').disabled = true;
+          document.getElementById('pick-enter-boxes').disabled = true;
+          document.getElementById('pick-enter-pcs').disabled = true;
 
           try {
               await apiCall('savePickedItems', { requestId: reqId, staffName: activePickerName, items: singlePickLog });
               showToast(`${skuItem.sku} Saved!`, "success");
-          } catch (e) {
-              showToast(`Failed to save ${skuItem.sku}`, "error");
-          }
+          } catch (e) { showToast(`Failed to save ${skuItem.sku}`, "error"); }
 
-          currentPickSkuIndex++; 
-          currentPickLocIndex = 0; 
-          remainingTargetQty = 0;
-          currentPickedLog = [];
-          
+          currentPickSkuIndex++; currentPickLocIndex = 0; remainingTargetQty = 0; currentPickedLog = [];
           renderNextPickStep();
       }
 
       function handlePickBarcodeScan(e) {
           if (e.key !== "Enter") return;
           e.preventDefault();
-          const skuItem = globalPickListCache[currentPickSkuIndex];
+          const skuItem = activePickList[currentPickSkuIndex];
           const inputBar = document.getElementById('pick-scan-barcode');
           
           if (inputBar.value.trim().toLowerCase() === skuItem.barcode.toLowerCase() || inputBar.value.trim().toLowerCase() === skuItem.sku.toLowerCase()) {
@@ -1373,72 +1429,80 @@
       function handlePickLocationScan(e) {
           if (e.key !== "Enter") return;
           e.preventDefault();
-          const locItem = globalPickListCache[currentPickSkuIndex].locations[currentPickLocIndex];
+          const locItem = activePickList[currentPickSkuIndex].locations[currentPickLocIndex];
           const inputLoc = document.getElementById('pick-scan-loc');
           
           if (inputLoc.value.trim().toLowerCase() === locItem.loc.toLowerCase()) {
               playMatchSound();
               inputLoc.className = "pick-input-box success"; inputLoc.disabled = true;
-              const inputQty = document.getElementById('pick-enter-qty');
-              inputQty.disabled = false; setTimeout(() => inputQty.focus(), 10);
-              document.getElementById('pick-skip-btn').disabled = true; // Can't skip loc once validated
+              
+              const inputBoxes = document.getElementById('pick-enter-boxes');
+              const inputPcs = document.getElementById('pick-enter-pcs');
+              inputBoxes.disabled = false; inputPcs.disabled = false;
+              
+              setTimeout(() => inputBoxes.focus(), 10);
+              document.getElementById('pick-skip-btn').disabled = true; 
           } else {
               playErrorSound(); inputLoc.value = ""; inputLoc.className = "pick-input-box error";
               setTimeout(() => inputLoc.className = "pick-input-box", 500);
           }
       }
 
-      function handlePickQtyEnter(e) {
+      function handlePickBoxesEnter(e) {
           if (e.key !== "Enter") return;
           e.preventDefault();
-          const inputQty = document.getElementById('pick-enter-qty');
-          const qtyVal = parseInt(inputQty.value.trim(), 10);
+          const inputBoxes = document.getElementById('pick-enter-boxes');
+          if (inputBoxes.value.trim() === "" || parseInt(inputBoxes.value, 10) <= 0) { playErrorSound(); return; }
+          playScanSound();
+          document.getElementById('pick-enter-pcs').focus();
+      }
+
+      function handlePickPcsEnter(e) {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
           
-          if (isNaN(qtyVal) || qtyVal < 0) {
-              playErrorSound(); inputQty.value = ""; inputQty.className = "pick-input-box error";
-              setTimeout(() => inputQty.className = "pick-input-box", 500); return;
+          const inputBoxes = document.getElementById('pick-enter-boxes');
+          const inputPcs = document.getElementById('pick-enter-pcs');
+          const boxes = parseInt(inputBoxes.value.trim(), 10);
+          const pcs = parseInt(inputPcs.value.trim(), 10);
+          
+          if (isNaN(boxes) || isNaN(pcs) || boxes <= 0 || pcs < 0) {
+              playErrorSound(); inputPcs.value = ""; return;
           }
 
+          const totalPick = boxes * pcs;
           playSuccessSubmitSound();
-          inputQty.className = "pick-input-box success"; inputQty.disabled = true;
           
-          const skuItem = globalPickListCache[currentPickSkuIndex];
+          const skuItem = activePickList[currentPickSkuIndex];
           const locItem = skuItem.locations[currentPickLocIndex];
 
-          currentPickedLog.push({ loc: locItem.loc, qty: qtyVal });
-          remainingTargetQty -= qtyVal;
+          currentPickedLog.push({ loc: locItem.loc, boxes: boxes, pcs: pcs, total: totalPick });
+          remainingTargetQty -= totalPick;
 
-          if (remainingTargetQty <= 0 || currentPickLocIndex + 1 >= skuItem.locations.length) {
+          if (remainingTargetQty <= 0) {
               finishCurrentSku();
           } else {
-              currentPickLocIndex++;
-              setTimeout(() => renderNextPickStep(), 400);
+              // Target not met. Keep them at the same location to enter another box config!
+              document.getElementById('pick-rem-qty').innerText = remainingTargetQty;
+              inputBoxes.value = ""; inputPcs.value = "";
+              setTimeout(() => inputBoxes.focus(), 100);
           }
       }
 
       function skipCurrentPickLocation() {
           playScanSound();
-          const skuItem = globalPickListCache[currentPickSkuIndex];
-          
-          if (currentPickLocIndex + 1 >= skuItem.locations.length) {
-              finishCurrentSku();
-          } else {
-              currentPickLocIndex++;
-              renderNextPickStep();
-          }
+          if (currentPickLocIndex + 1 >= activePickList[currentPickSkuIndex].locations.length) finishCurrentSku();
+          else { currentPickLocIndex++; renderNextPickStep(); }
       }
 
       function skipCurrentSku() {
           if(confirm("Skip this entire SKU? It will be marked as finished with whatever you've picked so far.")) {
-              playScanSound();
-              finishCurrentSku();
+              playScanSound(); finishCurrentSku();
           }
       }
 
       function cancelActivePicking() {
-          if(confirm("Are you sure you want to cancel this pick? Current SKU progress will be lost.")) {
-              switchToPickRequest();
-          }
+          if(confirm("Are you sure you want to cancel this pick? Current SKU progress will be lost.")) switchToPickRequest();
       }
 
       // --- DASHBOARD FRONTEND FILTERS ---
@@ -1536,6 +1600,70 @@
                   </tr>
               `;
           });
+      }
+
+      function initiateReprint(reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex) {
+          pendingReprintData = { reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex }; pendingReprintRow = rowIndex;
+          closeAllModals();
+          document.getElementById('reprint-auth-input').value = ""; document.getElementById('reprint-auth-modal').style.display = 'flex';
+          setTimeout(() => document.getElementById('reprint-auth-input').focus(), 100);
+      }
+
+      function handleReprintAuthEnter(e) {
+          if (e.key === "Enter") {
+              clearTimeout(opsScannerTimer); e.preventDefault(); const input = document.getElementById('reprint-auth-input').value.trim().toLowerCase();
+              const exactMatch = masterStaffData.find(row => String(row[0]).toLowerCase() === input || String(row[1] || "").toLowerCase() === input);
+              if (exactMatch) { playScanSound(); authorizedReprintStaff = exactMatch[0]; closeAllModals(); executeReprintLabel(); }
+              else { playErrorSound(); document.getElementById('reprint-auth-input').value = ""; showToast("Invalid Badge.", "error"); }
+              return;
+          }
+          clearTimeout(opsScannerTimer); opsScannerTimer = setTimeout(() => { document.getElementById('reprint-auth-input').value = ""; }, 500);
+      }
+
+      function executeReprintLabel() {
+          const data = pendingReprintData;
+          printLabelHTML([{ id: 'r1', date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString(), boxNum: data.boxNum, reqId: data.reqId, sku: data.sku, qty: data.qty, barcode: data.barcode, c1: data.c1, c2: data.c2 }]);
+          closeAllModals(); document.getElementById('reprint-modal').style.display = 'flex';
+      }
+
+      function cancelReprintVerification() {
+          pendingReprintData = null; pendingReprintRow = null; authorizedReprintStaff = ""; closeAllModals(); showToast("Reprint cancelled. Count not added.", "info");
+      }
+
+      async function confirmReprintVerification() {
+          closeAllModals();
+          if (!pendingReprintRow || !authorizedReprintStaff) return;
+          showToast("Updating print count...", "loading");
+          try {
+              await apiCall('incrementPrintCount', { sheetName: activeSheetName, rowIndex: pendingReprintRow, staffName: authorizedReprintStaff });
+              pendingReprintRow = null; pendingReprintData = null; authorizedReprintStaff = ""; loadDashboardData(); showToast("Print count updated!", "success");
+          } catch(e) { showToast("Failed to update count.", "error"); }
+      }
+
+      function initiateVoid(boxNum, rowIndex) {
+          pendingVoidRow = rowIndex; document.getElementById('void-box-target').innerText = boxNum; closeAllModals();
+          document.getElementById('void-auth-input').value = ""; document.getElementById('void-auth-modal').style.display = 'flex';
+          setTimeout(() => document.getElementById('void-auth-input').focus(), 100);
+      }
+
+      function handleVoidAuthEnter(e) {
+          if (e.key === "Enter") {
+              clearTimeout(opsScannerTimer); e.preventDefault(); const input = document.getElementById('void-auth-input').value.trim().toLowerCase();
+              const exactMatch = masterStaffData.find(row => String(row[0]).toLowerCase() === input || String(row[1] || "").toLowerCase() === input);
+              if (exactMatch) { playAlarmSound(); closeAllModals(); confirmVoidAction(exactMatch[0]); }
+              else { playErrorSound(); document.getElementById('void-auth-input').value = ""; showToast("Invalid Badge.", "error"); }
+              return;
+          }
+          clearTimeout(opsScannerTimer); opsScannerTimer = setTimeout(() => { document.getElementById('void-auth-input').value = ""; }, 500);
+      }
+
+      async function confirmVoidAction(staffName) {
+          if (!pendingVoidRow) return;
+          showToast("Voiding Box...", "loading");
+          try {
+              await apiCall('voidBox', { sheetName: activeSheetName, rowIndex: pendingVoidRow, staffName: staffName });
+              pendingVoidRow = null; loadDashboardData(); showToast("Box successfully voided!", "success");
+          } catch(e) { showToast("Failed to void box.", "error"); }
       }
     </script>
   </body>
