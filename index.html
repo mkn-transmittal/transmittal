@@ -627,6 +627,13 @@
 
       let pendingActionType = "";
 
+      // --- ADD THESE 4 MISSING LINES HERE ---
+      let html5QrCode;
+      let currentTargetInput = "";
+      let lastScannedText = "";
+      let lastScanTime = 0;
+      // --------------------------------------
+
       // --- GLOBAL BARCODE LISTENER FOR MAGIC PRINT ---
       let globalBarcodeBuffer = "";
       let globalBarcodeTimer;
