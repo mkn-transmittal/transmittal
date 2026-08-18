@@ -420,6 +420,8 @@
                 <input type="text" id="filter-search" oninput="applyFilters()" placeholder="Type to search..." style="margin:0; width: 100%; padding: 8px;" inputmode="text">
             </div>
             <button onclick="loadDashboardData()" class="blue-btn responsive-filter-btn" style="height: 38px;">🔄 Refresh</button>
+            
+            <button onclick="bulkPrintDashboard()" id="dashboard-bulk-print-btn" class="orange-btn responsive-filter-btn" style="height: 38px; display: none; margin-left: auto;">🖨️ Bulk Print</button>
         </div>
 
         <div class="table-responsive">
@@ -637,6 +639,12 @@
           let html = "";
           configs.forEach(cfg => {
               const dateStr = cfg.date || (new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString());
+              let leftFooter = cfg.c1 || "-";
+              let rightFooter = cfg.c2 || "-";
+              if (leftFooter.includes("Picked (")) { // Just in case layout flips
+                  rightFooter = leftFooter; leftFooter = cfg.c2;
+              }
+
               html += `
               <div class="thermal-label">
                   <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid black; padding-bottom: 4px; width: 100%;">
@@ -655,8 +663,8 @@
                       <svg id="bc-${cfg.id}"></svg>
                   </div>
                   <div style="font-size: 15px; display: flex; justify-content: space-between; border-top: 2px solid black; padding-top: 6px; width: 100%;">
-                      <span>Picker: ${cfg.c1}</span>
-                      <span>Loc: ${cfg.c2}</span>
+                      <span>C1: ${leftFooter}</span>
+                      <span>C2/Loc: ${rightFooter}</span>
                   </div>
               </div>`;
           });
@@ -943,6 +951,21 @@
         } catch(e) { showToast("Failed to load Request IDs", "error"); }
       }
 
+      // --- FIXED: Ensures routing works safely ---
+      function switchToScanner() {
+          const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
+          if(!activeSheetName) {
+              hideAllSections(); document.getElementById('admin-gate').style.display = 'block';
+              return showToast("Please login first.", "error");
+          }
+          hideAllSections(); 
+          document.getElementById('scanner-section').style.display = 'block';
+          if(activeRequestId && activeRequestId !== "undefined") {
+              document.getElementById('scanner-request-input').value = activeRequestId;
+              unlockScannerInputs(); setTimeout(() => document.getElementById('sku-search').focus(), 10);
+          } else { lockScannerInputs(); }
+      }
+
       function confirmScannerRequest() {
           const val = document.getElementById('scanner-request-input').value.trim();
           if(!val || val === "undefined") { lockScannerInputs(); lastLockedTarget = ""; return; }
@@ -1091,7 +1114,7 @@
           try {
               const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
               playSuccessSubmitSound(); closeAllModals();
-              printLabelHTML([{ id: 't1', date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString(), boxNum: response.boxNumber, reqId: pendingPayload.requestId, sku: pendingPayload.sku, qty: pendingPayload.qty, barcode: pendingPayload.barcode, c1: pendingPayload.c1, c2: "-" }]);
+              printLabelHTML([{ id: 't1', date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString(), boxNum: response.boxNumber, reqId: pendingPayload.requestId, sku: pendingPayload.sku, qty: pendingPayload.qty, barcode: pendingPayload.barcode, c1: pendingPayload.c1, c2: pendingPayload.c2 }]);
               document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
               btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = "";
               setTimeout(() => document.getElementById('sku-search').focus(), 10);
@@ -1450,6 +1473,13 @@
       function applyFilters() {
           const tbody = document.getElementById('dashboard-table-body');
           const dateFilter = document.getElementById('filter-date').value; const searchFilter = document.getElementById('filter-search').value.toLowerCase();
+          
+          // Show/Hide Dashboard Bulk Print
+          const reqInput = document.getElementById('dashboard-request-input').value.trim();
+          const bulkBtn = document.getElementById('dashboard-bulk-print-btn');
+          if (reqInput && reqInput !== "ALL") bulkBtn.style.display = 'inline-block';
+          else bulkBtn.style.display = 'none';
+
           tbody.innerHTML = '';
           if (currentDashboardLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #777;">No boxes logged yet.</td></tr>'; return; }
 
@@ -1494,6 +1524,27 @@
                   </tr>
               `;
           });
+      }
+
+      function bulkPrintDashboard() {
+          const reqId = document.getElementById('dashboard-request-input').value.trim();
+          if (!reqId || reqId === "ALL") return showToast("Please select a specific Request ID first.", "error");
+
+          let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId.toString().toLowerCase() === reqId.toLowerCase());
+          if (filteredLogs.length === 0) return showToast("No items to print for this Request ID.", "error");
+
+          let configs = filteredLogs.map((log, idx) => ({
+              id: 'db_bulk_' + idx,
+              date: log.date,
+              boxNum: log.boxNum,
+              reqId: log.requestId,
+              sku: log.sku,
+              qty: log.qty,
+              barcode: log.barcode || "-",
+              c1: log.c1,
+              c2: log.type === 'Picked' ? log.category : log.c2
+          }));
+          printLabelHTML(configs);
       }
 
       function initiateReprint(reqId, sku, barcode, qty, boxNum, c1, c2, rowIndex, logType) {
