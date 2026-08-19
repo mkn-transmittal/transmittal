@@ -1332,31 +1332,37 @@
           pendingActionType = "";
       }
 
-      async function finishCurrentSku(isSkipped = false) {
+      // --- SILENT BACKGROUND SAVE ENABLED ---
+      function finishCurrentSku(isSkipped = false) {
           const skuItem = activePickList[currentPickSkuIndex];
           let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.total, 0);
           
+          // Passing exact Row Index and Barcode straight from Cache!
           let singlePickLog = [{ 
-              sku: skuItem.sku, totalQty: totalPicked, picks: [...currentPickedLog], isSkipped: isSkipped 
+              sku: skuItem.sku, 
+              barcode: skuItem.barcode,
+              totalQty: totalPicked, 
+              picks: [...currentPickedLog], 
+              isSkipped: isSkipped,
+              prRowIndex: skuItem.prRowIndex
           }];
 
           const reqId = document.getElementById('pick-req-id-display').innerText;
-          showToast(`Saving ${skuItem.sku}...`, "loading");
           
           document.getElementById('pick-skip-btn').disabled = true; 
           document.getElementById('pick-skip-sku-btn').disabled = true;
           document.getElementById('pick-done-btn').disabled = true;
-          
           document.getElementById('pick-scan-barcode').disabled = true; 
           document.getElementById('pick-enter-boxes').disabled = true; 
           document.getElementById('pick-enter-pcs').disabled = true;
 
-          try {
-              // PASSING ACTIVE SHEET NAME SO IT SAVES IN THE MAIN DB
-              await apiCall('savePickedItems', { sheetName: activeSheetName, requestId: reqId, staffName: activePickerName, items: singlePickLog });
-              showToast(`${skuItem.sku} Saved!`, "success");
-          } catch (e) { showToast(`Failed to save ${skuItem.sku}`, "error"); }
+          // SILENT API CALL: No "await", meaning the app doesn't freeze. It saves in the background!
+          apiCall('savePickedItems', { sheetName: activeSheetName, requestId: reqId, staffName: activePickerName, items: singlePickLog })
+             .catch(e => console.error("Silent background save delayed.", e));
 
+          showToast(`${skuItem.sku} Picked!`, "success");
+
+          // Instantly jumps to the next item in 0 seconds.
           currentPickSkuIndex++; currentPickLocIndex = 0; remainingTargetQty = 0; currentPickedLog = [];
           renderNextPickStep();
       }
