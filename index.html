@@ -4,9 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>[MKN] Transmittal</title>
+    <!-- Barcode Generator -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <!-- QR Code Generator -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Mobile Camera Barcode Scanner -->
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Excel File Reader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <style>
@@ -191,6 +195,7 @@
       <a onclick="logOut()" style="color: #F44336; border-top: 1px solid #1f2937; margin-top: 10px;"><span>🚪</span> Log Out</a>
     </div>
 
+    <!-- Step 1: Smart Admin Gate -->
     <div class="container" id="admin-gate">
       <h2>System Access</h2>
       <p>Enter your department password</p>
@@ -199,6 +204,7 @@
       <div id="error-message" style="color: red; margin-top: 10px; display: none; font-weight: bold;">Incorrect password. Please try again.</div>
     </div>
 
+    <!-- Step 2: Main Scanner Dashboard -->
     <div class="container" id="scanner-section" style="display: none; max-width: 480px;">
         <div class="nav-bar">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -248,6 +254,7 @@
         </div>
     </div>
 
+    <!-- REQUEST REPLENISH -->
     <div class="container" id="replenish-section" style="display: none; max-width: 500px; border: 4px solid #4CAF50;">
         <button class="menu-btn" onclick="toggleSidebar()" style="position:absolute; top: 15px; left: 15px;">☰</button>
         <h2 style="color: #4CAF50; margin-top: 30px;">📤 Request Replenish</h2>
@@ -272,6 +279,7 @@
         <button class="blue-btn" style="background-color: #4CAF50;" onclick="uploadReplenishFile()">Upload & Create Request</button>
     </div>
 
+    <!-- PICK REQUEST DASHBOARD -->
     <div class="dashboard-wrapper" id="pick-request-section" style="border-top: 5px solid #ff9800;">
         <div class="nav-bar" style="margin-bottom: 10px;">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -310,6 +318,7 @@
         </div>
     </div>
 
+    <!-- ACTIVE PICKING WORKFLOW -->
     <div class="container" id="active-picking-section" style="display: none; max-width: 500px; border: 4px solid #ff9800;">
         <div class="nav-bar" style="margin-bottom: 15px; border-bottom: none; padding-bottom: 0;">
             <h2 style="margin: 0; color: #ff9800; font-size: 22px;">📦 Active Picking</h2>
@@ -328,7 +337,7 @@
         </div>
 
         <input type="text" id="pick-scan-barcode" class="pick-input-box" placeholder="1️⃣ Scan SKU Barcode..." onkeydown="handlePickBarcodeScan(event)" autocomplete="off">
-        <input type="text" id="pick-scan-loc" class="pick-input-box" placeholder="2️⃣ Scan Location Barcode..." onkeydown="handlePickLocationScan(event)" autocomplete="off" disabled>
+        <input type="text" id="pick-scan-loc" class="pick-input-box" placeholder="2️⃣ Scan Location Barcode..." onkeydown="handlePickLocationScan(event)" autocomplete="off" style="display: none;" disabled>
         
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
             <input type="number" id="pick-enter-boxes" class="pick-input-box" style="margin-bottom: 0;" placeholder="📦 Boxes" onkeydown="handlePickBoxesEnter(event)" autocomplete="off" disabled>
@@ -345,6 +354,7 @@
         </div>
     </div>
 
+    <!-- RECEIVING LOGIN GATE -->
     <div class="container" id="receive-login-section" style="display: none; max-width: 400px; border: 4px solid #2196F3;">
         <button class="menu-btn" onclick="toggleSidebar()" style="position:absolute; top: 15px; left: 15px;">☰</button>
         <h2 style="color: #2196F3; margin-top: 30px;">Receiver Sign-In</h2>
@@ -358,6 +368,7 @@
         <button class="btn-error" onclick="switchToScanner()" style="background-color: #9e9e9e; margin-top: 20px;">Cancel / Go Back</button>
     </div>
 
+    <!-- RECEIVING CHECKLIST -->
     <div class="dashboard-wrapper" id="receive-dashboard-section" style="border-top: 5px solid #2196F3;">
         <div class="nav-bar" style="margin-bottom: 10px;">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -399,6 +410,7 @@
         </div>
     </div>
 
+    <!-- MAIN LOG DASHBOARD -->
     <div class="dashboard-wrapper" id="dashboard-section">
         <div class="nav-bar" style="margin-bottom: 10px;">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -420,7 +432,6 @@
                 <input type="text" id="filter-search" oninput="applyFilters()" placeholder="Type to search..." style="margin:0; width: 100%; padding: 8px;" inputmode="text">
             </div>
             <button onclick="loadDashboardData()" class="blue-btn responsive-filter-btn" style="height: 38px;">🔄 Refresh</button>
-            
             <button onclick="bulkPrintDashboard()" id="dashboard-bulk-print-btn" class="orange-btn responsive-filter-btn" style="height: 38px; display: none; margin-left: auto;">🖨️ Bulk Print</button>
         </div>
 
@@ -447,6 +458,7 @@
         </div>
     </div>
 
+    <!-- PICKER AUTH MODAL -->
     <div class="modal-overlay" id="picker-auth-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #4CAF50;">🔐</div>
@@ -464,6 +476,7 @@
         </div>
     </div>
 
+    <!-- PREVIEW MODAL -->
     <div class="modal-overlay" id="success-modal">
         <div class="modal-card">
             <div class="modal-icon-success">☑️</div>
@@ -484,6 +497,7 @@
         </div>
     </div>
 
+    <!-- REPRINT AUTH MODAL -->
     <div class="modal-overlay" id="reprint-auth-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #ff9800;">🔐</div>
@@ -501,6 +515,7 @@
         </div>
     </div>
 
+    <!-- VOID AUTH MODAL -->
     <div class="modal-overlay" id="void-auth-modal">
         <div class="modal-card">
             <div class="modal-icon-error" style="color: #F44336; font-size: 50px;">🗑️</div>
@@ -518,6 +533,7 @@
         </div>
     </div>
 
+    <!-- REPRINT VERIFY MODAL -->
     <div class="modal-overlay" id="reprint-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #2196F3;">🖨️</div>
@@ -530,6 +546,7 @@
         </div>
     </div>
 
+    <!-- ACTION CONFIRMATION MODAL -->
     <div class="modal-overlay" id="action-confirm-modal">
         <div class="modal-card">
             <div class="modal-icon-success" id="action-confirm-icon" style="color: #ff9800;">⏭️</div>
@@ -542,6 +559,7 @@
         </div>
     </div>
 
+    <!-- ERROR MODAL -->
     <div class="modal-overlay" id="error-modal">
         <div class="modal-card">
             <div class="modal-icon-error" id="error-modal-icon">✖️</div>
@@ -551,6 +569,7 @@
         </div>
     </div>
 
+    <!-- CAMERA SCANNER MODAL -->
     <div class="modal-overlay" id="camera-modal" style="z-index: 7000;">
         <div class="modal-card" style="padding: 15px; width: 95%; max-width: 400px;">
             <h3 style="margin-top: 0; color: #333;">📷 Scan Barcode</h3>
@@ -559,6 +578,7 @@
         </div>
     </div>
 
+    <!-- DYNAMIC THERMAL PRINT CONTAINER -->
     <div id="print-container" style="display: none;"></div>
 
     <script>
@@ -641,7 +661,7 @@
               const dateStr = cfg.date || (new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString());
               let leftFooter = cfg.c1 || "-";
               let rightFooter = cfg.c2 || "-";
-              if (leftFooter.includes("Picked (")) { // Just in case layout flips
+              if (leftFooter.includes("Picked (")) { 
                   rightFooter = leftFooter; leftFooter = cfg.c2;
               }
 
@@ -724,7 +744,6 @@
           else if (currentTargetInput === 'void-auth-input') handleVoidAuthEnter(mockEvent);
           else if (currentTargetInput === 'picker-auth-input') handlePickerAuthEnter(mockEvent);
           else if (currentTargetInput === 'pick-scan-barcode') handlePickBarcodeScan(mockEvent);
-          else if (currentTargetInput === 'pick-scan-loc') handlePickLocationScan(mockEvent);
       }
 
       function closeAllModals() {
@@ -951,7 +970,6 @@
         } catch(e) { showToast("Failed to load Request IDs", "error"); }
       }
 
-      // --- FIXED: Ensures routing works safely ---
       function switchToScanner() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           if(!activeSheetName) {
@@ -1053,6 +1071,7 @@
             }
             playErrorSound(); document.getElementById(inputId).value = ""; return;
         }
+
         const box = document.getElementById(boxId);
         if (box.style.display !== 'block') return; 
         const items = box.getElementsByClassName('suggestion-item');
@@ -1278,16 +1297,18 @@
           setTimeout(() => document.getElementById('picker-auth-input').focus(), 100);
       }
 
+      // --- FIXED: Picker Auth (No more auto-clear timeout) ---
       function handlePickerAuthEnter(e) {
           if (e.key === "Enter") {
-              clearTimeout(opsScannerTimer); e.preventDefault(); 
+              e.preventDefault(); 
               const input = document.getElementById('picker-auth-input').value.trim().toLowerCase();
               const match = masterStaffData.find(row => String(row[0]).toLowerCase() === input || String(row[1] || "").toLowerCase() === input);
-              if (match) { playSuccessReceiveSound(); closeAllModals(); activePickerName = match[0]; startDirectedPicking(); } 
-              else { playErrorSound(); document.getElementById('picker-auth-input').value = ""; showToast("Invalid Badge.", "error"); }
-              return;
+              if (match) { 
+                  playSuccessReceiveSound(); closeAllModals(); activePickerName = match[0]; startDirectedPicking(); 
+              } else { 
+                  playErrorSound(); document.getElementById('picker-auth-input').value = ""; showToast("Invalid Badge.", "error"); 
+              }
           }
-          clearTimeout(opsScannerTimer); opsScannerTimer = setTimeout(() => { document.getElementById('picker-auth-input').value = ""; }, 500);
       }
 
       function startDirectedPicking() {
@@ -1318,12 +1339,10 @@
           document.getElementById('pick-loc-avail').innerText = locItem.qty;
 
           const inputBar = document.getElementById('pick-scan-barcode');
-          const inputLoc = document.getElementById('pick-scan-loc');
           const inputBoxes = document.getElementById('pick-enter-boxes');
           const inputPcs = document.getElementById('pick-enter-pcs');
           
           inputBar.value = ""; inputBar.disabled = false; inputBar.className = "pick-input-box";
-          inputLoc.value = ""; inputLoc.disabled = true; inputLoc.className = "pick-input-box";
           inputBoxes.value = ""; inputBoxes.disabled = true; inputBoxes.className = "pick-input-box";
           inputPcs.value = ""; inputPcs.disabled = true; inputPcs.className = "pick-input-box";
           
@@ -1390,7 +1409,7 @@
           showToast(`Saving ${skuItem.sku}...`, "loading");
           
           document.getElementById('pick-skip-btn').disabled = true; document.getElementById('pick-skip-sku-btn').disabled = true;
-          document.getElementById('pick-scan-barcode').disabled = true; document.getElementById('pick-scan-loc').disabled = true;
+          document.getElementById('pick-scan-barcode').disabled = true; 
           document.getElementById('pick-enter-boxes').disabled = true; document.getElementById('pick-enter-pcs').disabled = true;
 
           try {
@@ -1402,27 +1421,25 @@
           renderNextPickStep();
       }
 
+      // --- FIXED: Skips Location Scan, Immediately unlocks Box/Pcs fields ---
       function handlePickBarcodeScan(e) {
           if (e.key !== "Enter") return; e.preventDefault();
           const skuItem = activePickList[currentPickSkuIndex]; const inputBar = document.getElementById('pick-scan-barcode');
+          
           if (inputBar.value.trim().toLowerCase() === skuItem.barcode.toLowerCase() || inputBar.value.trim().toLowerCase() === skuItem.sku.toLowerCase()) {
-              playMatchSound(); inputBar.className = "pick-input-box success"; inputBar.disabled = true;
-              const inputLoc = document.getElementById('pick-scan-loc'); inputLoc.disabled = false; setTimeout(() => inputLoc.focus(), 10);
-          } else {
-              playErrorSound(); inputBar.value = ""; inputBar.className = "pick-input-box error"; setTimeout(() => inputBar.className = "pick-input-box", 500);
-          }
-      }
-
-      function handlePickLocationScan(e) {
-          if (e.key !== "Enter") return; e.preventDefault();
-          const locItem = activePickList[currentPickSkuIndex].locations[currentPickLocIndex]; const inputLoc = document.getElementById('pick-scan-loc');
-          if (inputLoc.value.trim().toLowerCase() === locItem.loc.toLowerCase()) {
-              playMatchSound(); inputLoc.className = "pick-input-box success"; inputLoc.disabled = true;
-              const inputBoxes = document.getElementById('pick-enter-boxes'); const inputPcs = document.getElementById('pick-enter-pcs');
-              inputBoxes.disabled = false; inputPcs.disabled = false; setTimeout(() => inputBoxes.focus(), 10);
+              playMatchSound(); 
+              inputBar.className = "pick-input-box success"; 
+              inputBar.disabled = true;
+              
+              const inputBoxes = document.getElementById('pick-enter-boxes'); 
+              const inputPcs = document.getElementById('pick-enter-pcs');
+              inputBoxes.disabled = false; 
+              inputPcs.disabled = false; 
+              setTimeout(() => inputBoxes.focus(), 10);
+              
               document.getElementById('pick-skip-btn').disabled = true; 
           } else {
-              playErrorSound(); inputLoc.value = ""; inputLoc.className = "pick-input-box error"; setTimeout(() => inputLoc.className = "pick-input-box", 500);
+              playErrorSound(); inputBar.value = ""; inputBar.className = "pick-input-box error"; setTimeout(() => inputBar.className = "pick-input-box", 500);
           }
       }
 
@@ -1474,7 +1491,6 @@
           const tbody = document.getElementById('dashboard-table-body');
           const dateFilter = document.getElementById('filter-date').value; const searchFilter = document.getElementById('filter-search').value.toLowerCase();
           
-          // Show/Hide Dashboard Bulk Print
           const reqInput = document.getElementById('dashboard-request-input').value.trim();
           const bulkBtn = document.getElementById('dashboard-bulk-print-btn');
           if (reqInput && reqInput !== "ALL") bulkBtn.style.display = 'inline-block';
@@ -1611,7 +1627,7 @@
           } catch(e) { showToast("Failed to void box.", "error"); }
       }
 
-      // --- LIGHTNING-FAST RECEIVING MODULE ---
+      // --- RECEIVING MODULE ---
       async function switchToReceiveLogin() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           if (!masterOpsData || masterOpsData.length === 0) { try { masterOpsData = await apiCall('getOpsTeam'); } catch(e) {} }
