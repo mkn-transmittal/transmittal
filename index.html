@@ -4,13 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>[MKN] Transmittal</title>
-    <!-- Barcode Generator -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-    <!-- QR Code Generator -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <!-- Mobile Camera Barcode Scanner -->
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <!-- Excel File Reader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <style>
@@ -194,7 +190,6 @@
       <a onclick="logOut()" style="color: #F44336; border-top: 1px solid #1f2937; margin-top: 10px;"><span>🚪</span> Log Out</a>
     </div>
 
-    <!-- Step 1: Smart Admin Gate -->
     <div class="container" id="admin-gate">
       <h2>System Access</h2>
       <p>Enter your department password</p>
@@ -203,7 +198,6 @@
       <div id="error-message" style="color: red; margin-top: 10px; display: none; font-weight: bold;">Incorrect password. Please try again.</div>
     </div>
 
-    <!-- Step 2: Main Scanner Dashboard -->
     <div class="container" id="scanner-section" style="display: none; max-width: 480px;">
         <div class="nav-bar">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -253,7 +247,6 @@
         </div>
     </div>
 
-    <!-- REQUEST REPLENISH -->
     <div class="container" id="replenish-section" style="display: none; max-width: 500px; border: 4px solid #4CAF50;">
         <button class="menu-btn" onclick="toggleSidebar()" style="position:absolute; top: 15px; left: 15px;">☰</button>
         <h2 style="color: #4CAF50; margin-top: 30px;">📤 Request Replenish</h2>
@@ -278,7 +271,6 @@
         <button class="blue-btn" style="background-color: #4CAF50;" onclick="uploadReplenishFile()">Upload & Create Request</button>
     </div>
 
-    <!-- PICK REQUEST DASHBOARD -->
     <div class="dashboard-wrapper" id="pick-request-section" style="border-top: 5px solid #ff9800;">
         <div class="nav-bar" style="margin-bottom: 10px;">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -317,7 +309,6 @@
         </div>
     </div>
 
-    <!-- ACTIVE PICKING WORKFLOW -->
     <div class="container" id="active-picking-section" style="display: none; max-width: 500px; border: 4px solid #ff9800;">
         <div class="nav-bar" style="margin-bottom: 15px; border-bottom: none; padding-bottom: 0;">
             <h2 style="margin: 0; color: #ff9800; font-size: 22px;">📦 Active Picking</h2>
@@ -353,7 +344,6 @@
         </div>
     </div>
 
-    <!-- RECEIVING LOGIN GATE -->
     <div class="container" id="receive-login-section" style="display: none; max-width: 400px; border: 4px solid #2196F3;">
         <button class="menu-btn" onclick="toggleSidebar()" style="position:absolute; top: 15px; left: 15px;">☰</button>
         <h2 style="color: #2196F3; margin-top: 30px;">Receiver Sign-In</h2>
@@ -367,7 +357,6 @@
         <button class="btn-error" onclick="switchToScanner()" style="background-color: #9e9e9e; margin-top: 20px;">Cancel / Go Back</button>
     </div>
 
-    <!-- RECEIVING CHECKLIST -->
     <div class="dashboard-wrapper" id="receive-dashboard-section" style="border-top: 5px solid #2196F3;">
         <div class="nav-bar" style="margin-bottom: 10px;">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -409,7 +398,6 @@
         </div>
     </div>
 
-    <!-- MAIN LOG DASHBOARD -->
     <div class="dashboard-wrapper" id="dashboard-section">
         <div class="nav-bar" style="margin-bottom: 10px;">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -457,7 +445,6 @@
         </div>
     </div>
 
-    <!-- PICKER AUTH MODAL -->
     <div class="modal-overlay" id="picker-auth-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #4CAF50;">🔐</div>
@@ -475,7 +462,6 @@
         </div>
     </div>
 
-    <!-- PREVIEW MODAL -->
     <div class="modal-overlay" id="success-modal">
         <div class="modal-card">
             <div class="modal-icon-success">☑️</div>
@@ -496,7 +482,6 @@
         </div>
     </div>
 
-    <!-- REPRINT AUTH MODAL -->
     <div class="modal-overlay" id="reprint-auth-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #ff9800;">🔐</div>
@@ -514,7 +499,6 @@
         </div>
     </div>
 
-    <!-- VOID AUTH MODAL -->
     <div class="modal-overlay" id="void-auth-modal">
         <div class="modal-card">
             <div class="modal-icon-error" style="color: #F44336; font-size: 50px;">🗑️</div>
@@ -532,7 +516,6 @@
         </div>
     </div>
 
-    <!-- REPRINT VERIFY MODAL -->
     <div class="modal-overlay" id="reprint-modal">
         <div class="modal-card">
             <div class="modal-icon-success" style="color: #2196F3;">🖨️</div>
@@ -545,7 +528,6 @@
         </div>
     </div>
 
-    <!-- ACTION CONFIRMATION MODAL -->
     <div class="modal-overlay" id="action-confirm-modal">
         <div class="modal-card">
             <div class="modal-icon-success" id="action-confirm-icon" style="color: #ff9800;">⏭️</div>
@@ -558,7 +540,6 @@
         </div>
     </div>
 
-    <!-- ERROR MODAL -->
     <div class="modal-overlay" id="error-modal">
         <div class="modal-card">
             <div class="modal-icon-error" id="error-modal-icon">✖️</div>
@@ -568,7 +549,6 @@
         </div>
     </div>
 
-    <!-- CAMERA SCANNER MODAL -->
     <div class="modal-overlay" id="camera-modal" style="z-index: 7000;">
         <div class="modal-card" style="padding: 15px; width: 95%; max-width: 400px;">
             <h3 style="margin-top: 0; color: #333;">📷 Scan Barcode</h3>
@@ -577,7 +557,6 @@
         </div>
     </div>
 
-    <!-- UNIFIED DYNAMIC THERMAL PRINT CONTAINER -->
     <div id="print-container" style="display: none;"></div>
 
     <script>
@@ -654,7 +633,6 @@
           }
       });
 
-      // --- UNIFIED PRINTING ENGINE ---
       function printLabelHTML(configs) {
           let html = "";
           configs.forEach(cfg => {
@@ -1124,7 +1102,6 @@
         }, 1000);
       }
 
-      // --- UNIFIED ACTION PRINT (Calls dynamic engine directly) ---
       async function actionPrint() {
           clearInterval(countdownTimer); 
           const btnPrint = document.getElementById('btn-confirm-print'); if (btnPrint.disabled) return; 
@@ -1482,7 +1459,6 @@
           }
       }
 
-      // --- DASHBOARD LOG FILTERS ---
       async function switchToDashboard() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           hideAllSections(); document.getElementById('dashboard-section').style.display = 'flex';
@@ -1597,7 +1573,6 @@
           clearTimeout(opsScannerTimer); opsScannerTimer = setTimeout(() => { document.getElementById('reprint-auth-input').value = ""; }, 500);
       }
 
-      // --- UNIFIED REPRINT EXECUTION ---
       function executeReprintLabel() {
           const data = pendingReprintData;
           let config = [{
@@ -1664,7 +1639,6 @@
           } catch(e) { showToast("Failed to void box.", "error"); }
       }
 
-      // --- RECEIVING MODULE ---
       async function switchToReceiveLogin() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           if (!masterOpsData || masterOpsData.length === 0) { try { masterOpsData = await apiCall('getOpsTeam'); } catch(e) {} }
