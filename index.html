@@ -211,6 +211,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th style="width: 40px; text-align: center;"><input type="checkbox" onclick="togglePickReqAll(this)" style="transform: scale(1.5); cursor: pointer;"></th>
                         <th>Box #</th>
                         <th>SKU Name</th>
                         <th>Target Qty</th>
@@ -221,7 +222,7 @@
                     </tr>
                 </thead>
                 <tbody id="pick-request-table-body">
-                    <tr><td colspan="7" style="text-align: center; color: #777;">Select a Request ID above to view the pick list.</td></tr>
+                    <tr><td colspan="8" style="text-align: center; color: #777;">Select a Request ID above to view the pick list.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -347,6 +348,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th style="width: 40px; text-align: center;"><input type="checkbox" onclick="toggleDashAll(this)" style="transform: scale(1.5); cursor: pointer;"></th>
                         <th>Request ID</th>
                         <th>Box #</th>
                         <th>SKU Name</th>
@@ -360,7 +362,7 @@
                     </tr>
                 </thead>
                 <tbody id="dashboard-table-body">
-                    <tr><td colspan="10" style="text-align: center; color: #777;">Loading logs...</td></tr>
+                    <tr><td colspan="11" style="text-align: center; color: #777;">Loading logs...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -1110,6 +1112,11 @@
           } catch(e) { showToast("Failed to load Pick Request IDs", "error"); }
       }
 
+      function togglePickReqAll(source) {
+          const checkboxes = document.querySelectorAll('.pickreq-cb');
+          checkboxes.forEach(cb => cb.checked = source.checked);
+      }
+
       async function loadPickRequestData() {
           const reqId = document.getElementById('pick-request-input').value.trim();
           const startBtn = document.getElementById('start-pick-btn');
@@ -1118,14 +1125,13 @@
           
           showToast("Loading Pick List...", "loading");
           try {
-              // Now passing activeSheetName so the backend knows where to find the Picked items
               const items = await apiCall('getPickRequestDetails', { sheetName: activeSheetName, requestId: reqId });
               hideToast();
               globalPickListCache = items; 
               const tbody = document.getElementById('pick-request-table-body'); tbody.innerHTML = '';
               
               if (!items || items.length === 0) {
-                  tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #777;">No active items found for this Request ID.</td></tr>';
+                  tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #777;">No active items found for this Request ID.</td></tr>';
                   startBtn.style.display = 'none'; bulkBtn.style.display = 'none'; return;
               }
               
@@ -1135,11 +1141,13 @@
                   let boxStr = item.boxNum ? `<b>Box #${item.boxNum}</b>` : "-";
                   let pQtyStr = item.pickedQty ? `<b>${item.pickedQty}</b>` : "-";
                   let pickerStr = item.picker ? `👤 ${item.picker}` : "-";
+                  let checkboxHtml = "";
 
                   if (item.status === "PICKED" && item.pickedQty > 0) {
                       statusHtml = `<span style="color: #4CAF50; font-weight:bold;">🟢 Picked</span>`;
                       rowStyle = "background-color: #f1f8e9;";
                       actionBtn = `<button onclick="printSinglePick('${item.sku}')" class="orange-btn">🖨️ Print</button>`;
+                      checkboxHtml = `<input type="checkbox" class="pickreq-cb" value="${item.sku}" style="transform: scale(1.5); cursor: pointer;">`;
                       hasPickedItems = true;
                   } else if (item.status === "SKIPPED" || (item.status === "PICKED" && item.pickedQty === 0)) {
                       statusHtml = `<span style="color: #9e9e9e; font-weight:bold;">⏭️ Skipped</span>`;
@@ -1155,6 +1163,7 @@
 
                   tbody.innerHTML += `
                       <tr style="${rowStyle}">
+                          <td style="text-align: center;">${checkboxHtml}</td>
                           <td>${boxStr}</td>
                           <td>${item.sku}</td>
                           <td><b>${item.targetQty}</b></td>
@@ -1185,7 +1194,11 @@
 
       function bulkPrintPicked() {
           const reqId = document.getElementById('pick-request-input').value.trim();
-          const pickedItems = globalPickListCache.filter(item => item.status === 'PICKED' && item.pickedQty > 0);
+          
+          const checkedSkus = Array.from(document.querySelectorAll('.pickreq-cb:checked')).map(cb => cb.value);
+          if (checkedSkus.length === 0) return showToast("Please check at least one SKU to print.", "error");
+
+          const pickedItems = globalPickListCache.filter(item => item.status === 'PICKED' && item.pickedQty > 0 && checkedSkus.includes(item.sku));
           if (pickedItems.length === 0) return;
           
           let configs = [];
@@ -1201,10 +1214,6 @@
           });
           printLabelHTML(configs);
       }
-
-      // ==========================================
-      // --- WMS DIRECTED PICKING ENGINE ---
-      // ==========================================
 
       function initiatePickProcess() {
           if (!masterStaffData || masterStaffData.length === 0) {
@@ -1323,21 +1332,31 @@
               if (currentPickLocIndex + 1 >= activePickList[currentPickSkuIndex].locations.length) { finishCurrentSku(); } 
               else { currentPickLocIndex++; renderNextPickStep(); }
           } else if (pendingActionType === 'skip_sku') {
-              playScanSound(); finishCurrentSku();
+              playScanSound(); finishCurrentSku(true);
           } else if (pendingActionType === 'done_picking') {
-              playScanSound(); finishCurrentSku();
+              playScanSound(); finishCurrentSku(false);
           } else if (pendingActionType === 'cancel_pick') {
               switchToPickRequest();
           }
           pendingActionType = "";
       }
 
-      // --- SILENT BACKGROUND SAVE ENABLED ---
       function finishCurrentSku(isSkipped = false) {
           const skuItem = activePickList[currentPickSkuIndex];
+          
+          const inputBoxes = document.getElementById('pick-enter-boxes'); 
+          const inputPcs = document.getElementById('pick-enter-pcs');
+          if (!inputBoxes.disabled && inputBoxes.value !== "" && inputPcs.value !== "") {
+              let b = parseInt(inputBoxes.value, 10);
+              let p = parseInt(inputPcs.value, 10);
+              if (!isNaN(b) && !isNaN(p) && b > 0 && p >= 0) {
+                  const locItem = skuItem.locations[currentPickLocIndex];
+                  currentPickedLog.push({ loc: locItem.loc, boxes: b, pcs: p, total: (b * p) });
+              }
+          }
+
           let totalPicked = currentPickedLog.reduce((sum, rec) => sum + rec.total, 0);
           
-          // Passing exact Row Index and Barcode straight from Cache!
           let singlePickLog = [{ 
               sku: skuItem.sku, 
               barcode: skuItem.barcode,
@@ -1356,13 +1375,11 @@
           document.getElementById('pick-enter-boxes').disabled = true; 
           document.getElementById('pick-enter-pcs').disabled = true;
 
-          // SILENT API CALL: No "await", meaning the app doesn't freeze. It saves in the background!
           apiCall('savePickedItems', { sheetName: activeSheetName, requestId: reqId, staffName: activePickerName, items: singlePickLog })
              .catch(e => console.error("Silent background save delayed.", e));
 
           showToast(`${skuItem.sku} Picked!`, "success");
 
-          // Instantly jumps to the next item in 0 seconds.
           currentPickSkuIndex++; currentPickLocIndex = 0; remainingTargetQty = 0; currentPickedLog = [];
           renderNextPickStep();
       }
@@ -1412,7 +1429,12 @@
           }
       }
 
-      // --- DASHBOARD LOG FILTERS ---
+      // --- DASHBOARD LOG ---
+      function toggleDashAll(source) {
+          const checkboxes = document.querySelectorAll('.dash-cb');
+          checkboxes.forEach(cb => cb.checked = source.checked);
+      }
+
       async function switchToDashboard() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           hideAllSections(); document.getElementById('dashboard-section').style.display = 'flex';
@@ -1443,7 +1465,7 @@
           else bulkBtn.style.display = 'none';
 
           tbody.innerHTML = '';
-          if (currentDashboardLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #777;">No boxes logged yet.</td></tr>'; return; }
+          if (currentDashboardLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #777;">No boxes logged yet.</td></tr>'; return; }
 
           let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId !== "undefined");
           if (dateFilter || searchFilter) {
@@ -1458,7 +1480,7 @@
               });
           }
 
-          if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #777;">No matching logs found.</td></tr>'; return; }
+          if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #777;">No matching logs found.</td></tr>'; return; }
           filteredLogs.forEach(log => {
               let counters = log.c2 && log.c2 !== "-" ? `${log.c1} / ${log.c2}` : log.c1;
               let reprintBadge = log.lastReprintBy && log.lastReprintBy !== "-" ? `<span style="font-size: 11px; background: #eee; padding: 2px 6px; border-radius: 4px;">👤 ${log.lastReprintBy}</span>` : `<span style="color:#aaa;">-</span>`;
@@ -1470,9 +1492,12 @@
                       <button onclick="initiateReprint('${log.requestId}', '${log.sku}', '${log.barcode}', '${log.qty}', '${log.boxNum}', '${log.c1}', '${log.c2}', ${log.rowIndex})" class="orange-btn" title="Reprint">🖨️</button>
                       <button onclick="initiateVoid('${log.boxNum}', ${log.rowIndex})" class="orange-btn" style="background-color: #F44336;" title="Void">🗑️</button>
                    </div>`;
+              
+              let checkboxHtml = !isVoid ? `<input type="checkbox" class="dash-cb" value="${log.boxNum}" style="transform: scale(1.5); cursor: pointer;">` : ``;
 
               tbody.innerHTML += `
                   <tr style="${rowStyle}">
+                      <td style="text-align: center;">${checkboxHtml}</td>
                       <td><span style="background: #eef2f3; padding: 4px 8px; border-radius: 4px;">${log.requestId}</span></td>
                       <td><b>Box #${log.boxNum}</b></td>
                       <td>${log.sku}</td>
@@ -1492,8 +1517,14 @@
           const reqId = document.getElementById('dashboard-request-input').value.trim();
           if (!reqId || reqId === "ALL") return showToast("Please select a specific Request ID first.", "error");
 
-          let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId.toString().toLowerCase() === reqId.toLowerCase());
-          if (filteredLogs.length === 0) return showToast("No items to print for this Request ID.", "error");
+          const checkedBoxes = Array.from(document.querySelectorAll('.dash-cb:checked')).map(cb => cb.value);
+          if (checkedBoxes.length === 0) return showToast("Please check at least one box to print.", "error");
+
+          let filteredLogs = [...currentDashboardLogs].reverse().filter(log => 
+              log.requestId && log.requestId.toString().toLowerCase() === reqId.toLowerCase() &&
+              checkedBoxes.includes(log.boxNum.toString())
+          );
+          if (filteredLogs.length === 0) return showToast("No items found to print.", "error");
 
           let configs = filteredLogs.map((log, idx) => ({
               id: 'db_bulk_' + idx,
