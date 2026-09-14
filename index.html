@@ -92,7 +92,6 @@
       }
     </style>
   </head>
-
   <body>
     <div id="toast">Message</div>
 
@@ -134,7 +133,7 @@
         </div>
 
         <div id="scanner-inputs-area" style="opacity: 0.4; pointer-events: none; transition: opacity 0.3s ease;">
-            <label>Search Item (SKU / Barcode):</label>
+            <label>Search Item (SKU / Barcode / Assembly ID):</label>
             <div class="input-row">
                 <div class="input-wrapper">
                     <input type="text" id="sku-search" placeholder="Type or scan barcode..." oninput="handleSkuSearch()" onkeydown="handleKeyNavigation(event, 'sku-suggestions')" autocomplete="off">
@@ -491,7 +490,7 @@
 
     <div id="print-container" style="display: none;"></div>
 
-  <script>
+    <script>
       // ==========================================
       // 🚨 CRITICAL: PASTE YOUR WEB APP URL HERE
       // ==========================================
@@ -604,8 +603,6 @@
 
           configs.forEach(cfg => {
               try { JsBarcode(`#bc-${cfg.id}`, cfg.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); } catch(e){}
-              
-              // SECURE QR CODE: Embeds Request ID to prevent mismatched receiving
               try { new QRCode(document.getElementById(`qr-${cfg.id}`), { text: cfg.reqId + "|BOX-" + cfg.boxNum, width: 64, height: 64, colorDark: "#000", colorLight: "#fff", correctLevel: QRCode.CorrectLevel.M }); } catch(e){}
           });
 
@@ -961,6 +958,50 @@
         } else box.style.display = 'none';
       }
 
+      // --- EXTERNAL ASSEMBLY API HOOK ---
+      async function checkAssemblyId(assemblyId) {
+          showToast("Searching Assembly Database...", "loading");
+          try {
+              const response = await apiCall('getAssemblyData', { assemblyId: assemblyId });
+              hideToast();
+              
+              if (response) {
+                  playMatchSound();
+                  
+                  const skuMatch = masterSkuData.find(row => String(row[0]).toLowerCase() === String(response.sku).toLowerCase());
+                  document.getElementById('sku-search').value = skuMatch ? skuMatch[0] : response.sku;
+                  document.getElementById('box-qty').value = response.qty;
+                  
+                  let doneBy = response.doneBy.trim();
+                  let c1 = doneBy; let c2 = doneBy;
+                  
+                  if (doneBy.includes(',')) {
+                      let names = doneBy.split(',').map(n => n.trim()).filter(n => n);
+                      if (names.length === 2) {
+                          c1 = names[0]; c2 = names[1];
+                      } else if (names.length > 2) {
+                          let half = Math.ceil(names.length / 2);
+                          c1 = names.slice(0, half).join(', ');
+                          c2 = names.slice(half).join(', ');
+                      }
+                  }
+                  
+                  document.getElementById('counter-1').value = c1;
+                  document.getElementById('counter-2').value = c2;
+                  document.getElementById('sku-suggestions').style.display = 'none';
+                  showToast("Assembly Loaded!", "success");
+                  
+                  setTimeout(() => document.getElementById('submit-btn').focus(), 100);
+              } else {
+                  playErrorSound();
+                  showToast("SKU or Assembly ID not found.", "error");
+                  document.getElementById('sku-search').value = "";
+              }
+          } catch(e) {
+              hideToast(); showToast("Error connecting to Assembly Database.", "error");
+          }
+      }
+
       function handleKeyNavigation(e, boxId) {
         if (e.key === "Enter") {
             e.preventDefault(); 
@@ -971,6 +1012,12 @@
             if (inputId === 'sku-search') {
                 exactMatch = masterSkuData.find(row => String(row[0]).toLowerCase() === currentInput || String(row[1]).toLowerCase() === currentInput);
                 if (exactMatch) return selectSku(exactMatch[0]);
+                
+                // NEW: Falls back to Assembly Database lookup if local SKU is not found!
+                if (!exactMatch) {
+                    checkAssemblyId(currentInput);
+                    return;
+                }
             } else {
                 exactMatch = masterStaffData.find(row => String(row[0]).toLowerCase() === currentInput || String(row[1] || "").toLowerCase() === currentInput);
                 if (exactMatch) return selectStaff(exactMatch[0], inputId);
@@ -1010,12 +1057,15 @@
         const skuInput = document.getElementById('sku-search').value; const qty = document.getElementById('box-qty').value;
         const c1 = document.getElementById('counter-1').value.trim(); const c2 = document.getElementById('counter-2').value.trim();
         if (!skuInput || !qty || !c1 || !c2) return triggerErrorModal("Please fill in all fields before submitting.", "sku-search");
-        const itemDetails = masterSkuData.find(row => row[0] === skuInput);
-        if (!itemDetails) return triggerErrorModal("Invalid SKU. Please select a valid item from the dropdown.", "sku-search");
+        
+        // Removed exact local dropdown requirement so the Assembly SKU can properly submit
+        const itemDetails = masterSkuData.find(row => row[0] === skuInput) || [skuInput, "-", "-"];
+        
         const validNames = masterStaffData.map(row => String(row[0]).toLowerCase());
-        if (!validNames.includes(c1.toLowerCase())) return triggerErrorModal("Invalid Counter 1 Name.", "counter-1");
-        if (!validNames.includes(c2.toLowerCase())) return triggerErrorModal("Invalid Counter 2 Name.", "counter-2");
-
+        
+        // Allows submitting without counter validation if pulled from assembly
+        if (!validNames.includes(c1.toLowerCase()) && !c1.includes(',')) return triggerErrorModal("Invalid Counter 1 Name.", "counter-1");
+        
         pendingPayload = { sheetName: activeSheetName, requestId: activeRequestId, sku: itemDetails[0], barcode: itemDetails[1], category: itemDetails[2], qty: qty, c1: c1, c2: c2 };
 
         const now = new Date();
@@ -1067,11 +1117,6 @@
           } catch(e) { showToast("Failed to save entry.", "error"); btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = 'Error. Click Print to retry.'; }
       }
 
-      function switchToReplenish() {
-          const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
-          hideAllSections(); document.getElementById('replenish-section').style.display = 'block';
-      }
-
       async function uploadReplenishFile() {
           const reqId = document.getElementById('replenish-request-id').value.trim();
           const fileInput = document.getElementById('replenish-file');
@@ -1106,6 +1151,11 @@
               } catch(err) { hideToast(); showToast("Error parsing Excel file.", "error"); }
           };
           reader.readAsArrayBuffer(file);
+      }
+
+      function switchToReplenish() {
+          const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
+          hideAllSections(); document.getElementById('replenish-section').style.display = 'block';
       }
 
       function switchToPickRequest() {
@@ -1355,7 +1405,6 @@
       function finishCurrentSku(isSkipped = false) {
           const skuItem = activePickList[currentPickSkuIndex];
           
-          // AUTO-COMMIT PARTIAL INPUTS
           const inputBoxes = document.getElementById('pick-enter-boxes'); 
           const inputPcs = document.getElementById('pick-enter-pcs');
           if (!inputBoxes.disabled && inputBoxes.value !== "" && inputPcs.value !== "") {
@@ -1441,7 +1490,6 @@
           }
       }
 
-      // --- DASHBOARD LOG ---
       function toggleDashAll(source) {
           const checkboxes = document.querySelectorAll('.dash-cb');
           checkboxes.forEach(cb => cb.checked = source.checked);
@@ -1627,7 +1675,6 @@
           } catch(e) { showToast("Failed to void box.", "error"); }
       }
 
-      // --- RECEIVING MODULE ---
       async function switchToReceiveLogin() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           if (!masterOpsData || masterOpsData.length === 0) { try { masterOpsData = await apiCall('getOpsTeam'); } catch(e) {} }
@@ -1703,12 +1750,10 @@
           let scannedReqId = "";
           let boxNum = "";
 
-          // NEW: Support for the bulletproof QR codes (REQ-ID|BOX-1)
           if (parts.length >= 2) {
               scannedReqId = parts[0].trim();
               boxNum = parts[1].replace(/^BOX-/i, "").trim();
           } else {
-              // BACKBACK: Still supports old labels that only say "BOX-1"
               boxNum = scannedVal.replace(/^BOX-/i, "").trim();
           }
 
@@ -1717,7 +1762,6 @@
           const activeReqId = document.getElementById('receive-request-input').value.trim();
           if(!activeReqId) { playErrorSound(); return showToast("Please select a Request ID first!", "error"); }
 
-          // SECURITY BLOCK: Prevents scanning a box from a different Request ID
           if (scannedReqId && scannedReqId.toLowerCase() !== activeReqId.toLowerCase()) {
               playErrorSound();
               return triggerErrorModal(`MISMATCH ALERT! You scanned Box #${boxNum} belonging to [${scannedReqId}], but your dashboard is currently set to [${activeReqId}].`, "receive-box-scan", true);
