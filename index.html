@@ -958,15 +958,26 @@
         } else box.style.display = 'none';
       }
 
-      // --- EXTERNAL ASSEMBLY API HOOK ---
+      // --- EXTERNAL ASSEMBLY API HOOK (WITH SECURITY BLOCK) ---
       async function checkAssemblyId(assemblyId) {
           showToast("Searching Assembly Database...", "loading");
           try {
               const response = await apiCall('getAssemblyData', { assemblyId: assemblyId });
               hideToast();
               
+              // NEW SAFE LINE: Blocks loading if the status isn't "Done"
+              if (response && response.error === "NOT_DONE") {
+                  playAlarmSound();
+                  document.getElementById('sku-search').value = "";
+                  activeAssemblyId = "";
+                  return triggerErrorModal("BLOCKED: This Assembly ID was found, but its status is not marked as 'Done' yet! Please finish the assembly in the tracker first.", "sku-search", true);
+              }
+              
               if (response) {
                   playMatchSound();
+                  
+                  // STORES THE ASSEMBLY ID TO BE SAVED IN COLUMN N
+                  activeAssemblyId = assemblyId; 
                   
                   const skuMatch = masterSkuData.find(row => String(row[0]).toLowerCase() === String(response.sku).toLowerCase());
                   document.getElementById('sku-search').value = skuMatch ? skuMatch[0] : response.sku;
