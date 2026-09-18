@@ -136,19 +136,19 @@
             <label>Search Item (SKU / Barcode / Assembly ID):</label>
             <div class="input-row">
                 <div class="input-wrapper">
-                    <input type="text" id="sku-search" placeholder="Type or scan barcode..." oninput="handleSkuSearch()" onkeydown="handleKeyNavigation(event, 'sku-suggestions')" autocomplete="off">
+                    <input type="text" id="sku-search" placeholder="Type or scan barcode..." oninput="handleSkuSearch()" onkeydown="handleKeyNavigation(event, 'sku-suggestions')" inputmode="none" autocomplete="off">
                     <div id="sku-suggestions" class="suggestions-box"></div>
                 </div>
                 <button class="cam-btn" onclick="openCamera('sku-search')">📷</button>
             </div>
             
             <label>Quantity:</label>
-            <input type="text" id="box-qty" placeholder="Enter Box Qty" onkeydown="handleQtyEnter(event)" autocomplete="off">
+            <input type="text" id="box-qty" placeholder="Enter Box Qty" onkeydown="handleQtyEnter(event)" inputmode="none" autocomplete="off">
 
             <label>Counter 1:</label>
             <div class="input-row">
                 <div class="input-wrapper">
-                    <input type="text" id="counter-1" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-1')" autocomplete="off">
+                    <input type="text" id="counter-1" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-1')" inputmode="none" autocomplete="off">
                     <div id="c1-suggestions" class="suggestions-box"></div>
                 </div>
                 <button class="cam-btn" onclick="openCamera('counter-1')">📷</button>
@@ -157,7 +157,7 @@
             <label>Counter 2:</label>
             <div class="input-row" id="counter-2-wrapper">
                 <div class="input-wrapper">
-                    <input type="text" id="counter-2" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-2')" autocomplete="off">
+                    <input type="text" id="counter-2" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-2')" inputmode="none" autocomplete="off">
                     <div id="c2-suggestions" class="suggestions-box"></div>
                 </div>
                 <button class="cam-btn" onclick="openCamera('counter-2')">📷</button>
@@ -249,7 +249,8 @@
             <p style="font-size: 13px; color: #777;">Available in Bin: <span id="pick-loc-avail">0</span></p>
         </div>
 
-        <input type="text" id="pick-scan-barcode" class="pick-input-box" placeholder="1️⃣ Scan SKU Barcode..." onkeydown="handlePickBarcodeScan(event)" autocomplete="off">
+        <!-- Active Picking Scanner -->
+         <input type="text" id="pick-scan-barcode" class="pick-input-box" placeholder="1️⃣ Scan SKU Barcode..." onkeydown="handlePickBarcodeScan(event)" inputmode="none" autocomplete="off">
         <input type="text" id="pick-scan-loc" class="pick-input-box" placeholder="2️⃣ Scan Location Barcode..." onkeydown="handlePickLocationScan(event)" autocomplete="off" style="display: none;" disabled>
         
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
@@ -301,7 +302,8 @@
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #2196F3; font-weight:bold;">2. Scan Box # Barcode to Receive</label>
                 <div style="display: flex; gap: 8px; width: 100%;">
-                    <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" autocomplete="off">
+                    <!-- Receiving Scanner -->
+                     <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" inputmode="none" autocomplete="off">
                     <button class="cam-btn" style="border-radius: 4px; height: 42px;" onclick="openCamera('receive-box-scan')">📷</button>
                 </div>
             </div>
