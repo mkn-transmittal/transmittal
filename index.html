@@ -302,8 +302,10 @@
             <div class="responsive-filter-item">
                 <label style="margin: 0 0 5px 0; font-size: 12px; color: #2196F3; font-weight:bold;">2. Scan Box # Barcode to Receive</label>
                 <div style="display: flex; gap: 8px; width: 100%;">
-                    <!-- Receiving Scanner -->
-                     <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" inputmode="none" autocomplete="off">
+                    <!-- Receiving Scanner (Wrapped in a form for Auto-Submit) -->
+                    <form onsubmit="handleBoxReceiveScan({ key: 'Enter', preventDefault: function(){} }); return false;" style="margin:0; width: 100%;">
+                    <input type="text" id="receive-box-scan" onkeydown="handleBoxReceiveScan(event)" placeholder="Scan Box Barcode..." style="margin:0; width: 100%; padding: 10px; border: 2px solid #2196F3; background: #e3f2fd;" inputmode="none" autocomplete="off">
+                    </form>
                     <button class="cam-btn" style="border-radius: 4px; height: 42px;" onclick="openCamera('receive-box-scan')">📷</button>
                 </div>
             </div>
