@@ -145,27 +145,114 @@
             <label>Quantity:</label>
             <input type="text" id="box-qty" placeholder="Enter Box Qty" onkeydown="handleQtyEnter(event)" inputmode="none" autocomplete="off">
 
-            <label>Counter 1:</label>
-            <div class="input-row">
-                <div class="input-wrapper">
-                    <input type="text" id="counter-1" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-1')" inputmode="none" autocomplete="off">
-                    <div id="c1-suggestions" class="suggestions-box"></div>
-                </div>
-                <button class="cam-btn" onclick="openCamera('counter-1')">📷</button>
-            </div>
+            <!-- ========================================== -->
+<!-- 1. THE HTML INPUTS (COUNTER 1 & 2)         -->
+<!-- ========================================== -->
 
-            <label>Counter 2:</label>
-            <div class="input-row" id="counter-2-wrapper">
-                <div class="input-wrapper">
-                    <input type="text" id="counter-2" placeholder="Scan Staff ID Barcode..." onkeydown="enforceScannerOnly(event, 'counter-2')" inputmode="none" autocomplete="off">
-                    <div id="c2-suggestions" class="suggestions-box"></div>
-                </div>
-                <button class="cam-btn" onclick="openCamera('counter-2')">📷</button>
-            </div>
-            <button onclick="triggerPreview()" id="submit-btn" class="blue-btn">Review & Print Label</button>
-        </div>
+<label>Counter 1:</label>
+<div class="input-row">
+    <div style="position: relative; width: 100%;">
+        <input type="text" id="counter-1" placeholder="Type Name or Scan ID..." oninput="handleStaffSearch('counter-1', 'suggestions-1')" onkeydown="handleStaffKey(event, 'counter-1', 'suggestions-1')" inputmode="none" autocomplete="off" style="width: 100%;">
+        <div id="suggestions-1" class="autocomplete-items" style="display:none; position:absolute; z-index:99; background:white; width:100%; max-height:150px; overflow-y:auto; border:1px solid #ccc; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
     </div>
+    <button class="cam-btn" onclick="openCamera('counter-1')">📷</button>
+</div>
 
+<label>Counter 2:</label>
+<div class="input-row" id="counter-2-wrapper">
+    <div style="position: relative; width: 100%; margin-top: 10px;">
+        <input type="text" id="counter-2" placeholder="Type Name or Scan ID..." oninput="handleStaffSearch('counter-2', 'suggestions-2')" onkeydown="handleStaffKey(event, 'counter-2', 'suggestions-2')" inputmode="none" autocomplete="off" style="width: 100%;">
+        <div id="suggestions-2" class="autocomplete-items" style="display:none; position:absolute; z-index:99; background:white; width:100%; max-height:150px; overflow-y:auto; border:1px solid #ccc; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+    </div>
+    <button class="cam-btn" onclick="openCamera('counter-2')">📷</button>
+</div>
+
+
+<!-- ========================================== -->
+<!-- 2. THE JAVASCRIPT LOGIC                    -->
+<!-- ========================================== -->
+<script>
+// Object to keep track of the timers for each input
+let staffTimers = {};
+
+// THE SEARCH LOGIC & 5-SECOND TIMER
+function handleStaffSearch(inputId, boxId) {
+    let input = document.getElementById(inputId);
+    let box = document.getElementById(boxId);
+    let query = input.value.toLowerCase().trim();
+
+    // Reset the timer every time they type a letter
+    if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
+
+    if (!query) {
+        box.style.display = 'none';
+        return;
+    }
+
+    // --- SEARCH MATCHING ---
+    box.innerHTML = "";
+    
+    // 🚨 IMPORTANT: Replace 'masterStaffData' with the actual name of your staff array! 
+    let matches = masterStaffData.filter(name => String(name).toLowerCase().includes(query));
+
+    matches.forEach(match => {
+        let div = document.createElement("div");
+        div.style.padding = "10px";
+        div.style.cursor = "pointer";
+        div.style.borderBottom = "1px solid #eee";
+        div.innerHTML = match;
+        
+        // When they click a name, it selects it
+        div.onclick = function() { selectStaff(inputId, match, boxId); };
+        box.appendChild(div);
+    });
+    
+    // Show the box only if we found matches
+    if (matches.length > 0) {
+        box.style.display = 'block'; 
+    } else {
+        box.style.display = 'none';
+    }
+
+    // Start the 5-second auto-delete countdown
+    staffTimers[inputId] = setTimeout(() => {
+        // If the box is still open after 5 seconds, it means they didn't select a name
+        if (box.style.display === 'block') {
+            input.value = ''; // Auto-delete the abandoned text
+            box.style.display = 'none'; // Hide the suggestion box
+        }
+    }, 5000);
+}
+
+// THE CLICK SELECTION LOGIC
+function selectStaff(inputId, name, boxId) {
+    document.getElementById(inputId).value = name;
+    document.getElementById(boxId).style.display = 'none';
+    
+    // They clicked a name! Cancel the delete timer so it stays safe.
+    if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
+}
+
+// THE BARCODE SCANNER OVERRIDE (Protects the Scan Code)
+function handleStaffKey(event, inputId, boxId) {
+    if (event.key === 'Enter') {
+        // Barcode scanners automatically hit "Enter".
+        // Instantly cancel the 5-second timer so the scan is NEVER deleted.
+        if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
+        
+        // Hide the suggestion box
+        document.getElementById(boxId).style.display = 'none';
+        
+        // Move focus to the next logical step
+        if (inputId === 'counter-1') {
+            document.getElementById('counter-2').focus();
+        } else if (inputId === 'counter-2') {
+            document.getElementById('submit-btn').focus();
+        }
+    }
+}
+</script>
+          
     <!-- Request Replenish -->
     <div class="container" id="replenish-section" style="display: none; max-width: 500px; border: 4px solid #4CAF50;">
         <button class="menu-btn" onclick="toggleSidebar()" style="position:absolute; top: 15px; left: 15px;">☰</button>
