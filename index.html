@@ -245,6 +245,7 @@ function selectStaff(inputId, name, boxId) {
 }
 
 // 3. THE BARCODE SCANNER OVERRIDE & AUTO-FILL
+// 3. THE BARCODE SCANNER OVERRIDE & AUTO-FILL
 function handleStaffKey(event, inputId, boxId) {
     if (event.key === 'Enter') {
         event.preventDefault(); // Stops the page from accidentally refreshing
@@ -256,14 +257,21 @@ function handleStaffKey(event, inputId, boxId) {
         // Instantly cancel the auto-delete timer
         if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
 
-        // --- THE DIRECT LOOKUP FIX ---
-        // Instantly check the array for the scanned code (like "mik-236").
+        // --- THE EXACT MATCH FIX ---
         if (query !== "") {
             let matches = masterStaffData.filter(name => String(name).toLowerCase().includes(query));
             
-            // If the system finds exactly ONE match for that code, auto-fill it!
-            if (matches.length === 1) {
-                input.value = matches[0];
+            // Try to find an EXACT match for the ID (the part after the comma)
+            let exactMatch = matches.find(name => {
+                let parts = String(name).toLowerCase().split(',');
+                return parts.length > 1 && parts[1].trim() === query;
+            });
+
+            // If an exact ID match is found, use it. Otherwise, force it to pick the top option.
+            if (exactMatch) {
+                input.value = exactMatch;
+            } else if (matches.length > 0) {
+                input.value = matches[0]; 
             }
         }
         
