@@ -145,148 +145,27 @@
             <label>Quantity:</label>
             <input type="text" id="box-qty" placeholder="Enter Box Qty" onkeydown="handleQtyEnter(event)" inputmode="none" autocomplete="off">
 
-            <!-- ========================================== -->
-<!-- 1. THE HTML INPUTS (COUNTER 1 & 2)         -->
-<!-- ========================================== -->
+            <label>Counter 1:</label>
+            <div class="input-row">
+                <div style="position: relative; width: 100%;">
+                    <input type="text" id="counter-1" placeholder="Type Name or Scan ID..." oninput="handleStaffSearch('counter-1', 'suggestions-1')" onkeydown="handleStaffKey(event, 'counter-1', 'suggestions-1')" inputmode="none" autocomplete="off" style="width: 100%;">
+                    <div id="suggestions-1" class="autocomplete-items" style="display:none; position:absolute; z-index:99; background:white; width:100%; max-height:150px; overflow-y:auto; border:1px solid #ccc; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+                </div>
+                <button class="cam-btn" onclick="openCamera('counter-1')">📷</button>
+            </div>
 
-<label>Counter 1:</label>
-<div class="input-row">
-    <div style="position: relative; width: 100%;">
-        <input type="text" id="counter-1" placeholder="Type Name or Scan ID..." oninput="handleStaffSearch('counter-1', 'suggestions-1')" onkeydown="handleStaffKey(event, 'counter-1', 'suggestions-1')" inputmode="none" autocomplete="off" style="width: 100%;">
-        <div id="suggestions-1" class="autocomplete-items" style="display:none; position:absolute; z-index:99; background:white; width:100%; max-height:150px; overflow-y:auto; border:1px solid #ccc; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+            <label>Counter 2:</label>
+            <div class="input-row" id="counter-2-wrapper">
+                <div style="position: relative; width: 100%; margin-top: 10px;">
+                    <input type="text" id="counter-2" placeholder="Type Name or Scan ID..." oninput="handleStaffSearch('counter-2', 'suggestions-2')" onkeydown="handleStaffKey(event, 'counter-2', 'suggestions-2')" inputmode="none" autocomplete="off" style="width: 100%;">
+                    <div id="suggestions-2" class="autocomplete-items" style="display:none; position:absolute; z-index:99; background:white; width:100%; max-height:150px; overflow-y:auto; border:1px solid #ccc; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+                </div>
+                <button class="cam-btn" onclick="openCamera('counter-2')">📷</button>
+            </div>
+
+            <button onclick="triggerPreview()" id="submit-btn" class="blue-btn">Review & Print Label</button>
+        </div>
     </div>
-    <button class="cam-btn" onclick="openCamera('counter-1')">📷</button>
-</div>
-
-<label>Counter 2:</label>
-<div class="input-row" id="counter-2-wrapper">
-    <div style="position: relative; width: 100%; margin-top: 10px;">
-        <input type="text" id="counter-2" placeholder="Type Name or Scan ID..." oninput="handleStaffSearch('counter-2', 'suggestions-2')" onkeydown="handleStaffKey(event, 'counter-2', 'suggestions-2')" inputmode="none" autocomplete="off" style="width: 100%;">
-        <div id="suggestions-2" class="autocomplete-items" style="display:none; position:absolute; z-index:99; background:white; width:100%; max-height:150px; overflow-y:auto; border:1px solid #ccc; border-radius:4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
-    </div>
-    <button class="cam-btn" onclick="openCamera('counter-2')">📷</button>
-</div>
-
-
-<!-- ========================================== -->
-<!-- 2. THE JAVASCRIPT LOGIC                    -->
-<!-- ========================================== -->
-<script>
-// Object to keep track of the timers for each input
-// Object to keep track of the timers for each input
-let staffTimers = {};
-
-// 1. THE SEARCH LOGIC & 5-SECOND TIMER
-function handleStaffSearch(inputId, boxId) {
-    let input = document.getElementById(inputId);
-    let box = document.getElementById(boxId);
-    let query = input.value.toLowerCase().trim();
-
-    // Reset the timer every time they type a letter
-    if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
-
-    if (!query) {
-        box.style.display = 'none';
-        return;
-    }
-
-    // --- SEARCH MATCHING ---
-    box.innerHTML = "";
-    
-    // 🚨 Ensure 'masterStaffData' matches your actual array name
-    let matches = masterStaffData.filter(name => String(name).toLowerCase().includes(query));
-
-    matches.forEach(match => {
-        let div = document.createElement("div");
-        div.style.padding = "10px";
-        div.style.cursor = "pointer";
-        div.style.borderBottom = "1px solid #eee";
-        div.innerHTML = match;
-        
-        // FIX: 'onmousedown' prevents the browser from glitching the click.
-        // It guarantees the click registers instantly before anything else happens!
-        div.onmousedown = function(event) { 
-            event.preventDefault(); 
-            selectStaff(inputId, match, boxId); 
-        };
-        box.appendChild(div);
-    });
-    
-    // Show the box only if we found matches
-    if (matches.length > 0) {
-        box.style.display = 'block'; 
-    } else {
-        box.style.display = 'none';
-    }
-
-    // Start the 5-second auto-delete countdown
-    staffTimers[inputId] = setTimeout(() => {
-        if (box.style.display === 'block') {
-            input.value = ''; // Auto-delete the abandoned text
-            box.style.display = 'none'; // Hide the suggestion box
-        }
-    }, 5000);
-}
-
-// 2. THE CLICK SELECTION LOGIC
-function selectStaff(inputId, name, boxId) {
-    document.getElementById(inputId).value = name;
-    document.getElementById(boxId).style.display = 'none';
-    
-    // Cancel the delete timer so it stays safe.
-    if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
-
-    // Auto-move to the next field after clicking a name!
-    if (inputId === 'counter-1') {
-        document.getElementById('counter-2').focus();
-    } else if (inputId === 'counter-2') {
-        document.getElementById('submit-btn').focus();
-    }
-}
-
-// 3. THE BARCODE SCANNER OVERRIDE & AUTO-FILL
-// 3. THE BARCODE SCANNER OVERRIDE & AUTO-FILL
-function handleStaffKey(event, inputId, boxId) {
-    if (event.key === 'Enter') {
-        event.preventDefault(); // Stops the page from accidentally refreshing
-        
-        let input = document.getElementById(inputId);
-        let box = document.getElementById(boxId);
-        let query = input.value.toLowerCase().trim();
-        
-        // Instantly cancel the auto-delete timer
-        if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
-
-        // --- THE EXACT MATCH FIX ---
-        if (query !== "") {
-            let matches = masterStaffData.filter(name => String(name).toLowerCase().includes(query));
-            
-            // Try to find an EXACT match for the ID (the part after the comma)
-            let exactMatch = matches.find(name => {
-                let parts = String(name).toLowerCase().split(',');
-                return parts.length > 1 && parts[1].trim() === query;
-            });
-
-            // If an exact ID match is found, use it. Otherwise, force it to pick the top option.
-            if (exactMatch) {
-                input.value = exactMatch;
-            } else if (matches.length > 0) {
-                input.value = matches[0]; 
-            }
-        }
-        
-        // Hide the dropdown box
-        box.style.display = 'none';
-        
-        // Move focus to the next logical step automatically
-        if (inputId === 'counter-1') {
-            document.getElementById('counter-2').focus();
-        } else if (inputId === 'counter-2') {
-            document.getElementById('submit-btn').focus();
-        }
-    }
-}
-</script>
           
     <!-- Request Replenish -->
     <div class="container" id="replenish-section" style="display: none; max-width: 500px; border: 4px solid #4CAF50;">
@@ -666,6 +545,10 @@ function handleStaffKey(event, inputId, boxId) {
       let globalBarcodeBuffer = "";
       let globalBarcodeTimer;
 
+      let skuFocus = -1; 
+      let staffFocus = { 'counter-1': -1, 'counter-2': -1 }; 
+      let staffTimers = {};
+
       window.addEventListener('keydown', function(e) {
           if (e.key.length === 1) {
               globalBarcodeBuffer += e.key;
@@ -771,8 +654,8 @@ function handleStaffKey(event, inputId, boxId) {
           const mockEvent = { key: 'Enter', preventDefault: () => {} };
           
           if (currentTargetInput === 'sku-search') handleKeyNavigation(mockEvent, 'sku-suggestions');
-          else if (currentTargetInput === 'counter-1') handleKeyNavigation(mockEvent, 'c1-suggestions');
-          else if (currentTargetInput === 'counter-2') handleKeyNavigation(mockEvent, 'c2-suggestions');
+          else if (currentTargetInput === 'counter-1') handleStaffKey(mockEvent, 'counter-1', 'suggestions-1');
+          else if (currentTargetInput === 'counter-2') handleStaffKey(mockEvent, 'counter-2', 'suggestions-2');
           else if (currentTargetInput === 'ops-passkey') handleOpsLoginScan(mockEvent);
           else if (currentTargetInput === 'receive-box-scan') handleBoxReceiveScan(mockEvent);
           else if (currentTargetInput === 'reprint-auth-input') handleReprintAuthEnter(mockEvent);
@@ -1050,7 +933,251 @@ function handleStaffKey(event, inputId, boxId) {
          } catch(e) { showToast("Failed to sync database", "error"); }
       }
 
-      function selectSku(skuName) { document.getElementById('sku-search').value = skuName; document.getElementById('sku-suggestions').style.display = 'none'; playScanSound(); document.getElementById('box-qty').focus(); }
+      // ==========================================
+      // SKU SEARCH & NAVIGATION LOGIC
+      // ==========================================
+
+      function handleSkuSearch() {
+          const query = document.getElementById('sku-search').value.toLowerCase().trim();
+          const box = document.getElementById('sku-suggestions');
+          box.innerHTML = '';
+          
+          skuFocus = -1; 
+
+          if (query.length < 2) { 
+              box.style.display = 'none'; 
+              return; 
+          }
+
+          const matches = masterSkuData.filter(row => 
+              String(row[0]).toLowerCase().includes(query) || 
+              String(row[1]).toLowerCase().includes(query)
+          );
+
+          if (matches.length > 0) {
+              matches.slice(0, 10).forEach((match, index) => {
+                  const div = document.createElement('div');
+                  div.className = 'suggestion-item';
+                  div.innerHTML = `<span class="suggestion-main">${match[0]}</span><span class="suggestion-sub">${match[1]}</span>`;
+                  
+                  div.onmousedown = (event) => { 
+                      event.preventDefault(); 
+                      selectSku(match[0]); 
+                  };
+
+                  div.onmouseover = () => {
+                      removeSkuHighlight(box.getElementsByTagName("div"));
+                      div.style.backgroundColor = "#e3f2fd";
+                      skuFocus = index;
+                  };
+
+                  box.appendChild(div);
+              });
+              box.style.display = 'block';
+          } else {
+              box.style.display = 'none';
+          }
+      }
+
+      function selectSku(sku) {
+          document.getElementById('sku-search').value = sku;
+          document.getElementById('sku-suggestions').style.display = 'none';
+          playScanSound(); 
+          document.getElementById('box-qty').focus(); 
+      }
+
+      function removeSkuHighlight(items) {
+          for (let i = 0; i < items.length; i++) {
+              items[i].style.backgroundColor = ""; 
+          }
+      }
+
+      function addSkuHighlight(items) {
+          if (!items || items.length === 0) return;
+          removeSkuHighlight(items);
+          
+          if (skuFocus >= items.length) skuFocus = 0;
+          if (skuFocus < 0) skuFocus = items.length - 1;
+          
+          items[skuFocus].style.backgroundColor = "#e3f2fd"; 
+          items[skuFocus].scrollIntoView({ block: "nearest" });
+      }
+
+      function handleKeyNavigation(event, boxId) {
+          const box = document.getElementById('sku-suggestions');
+          let items = box ? box.getElementsByTagName("div") : [];
+
+          if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              skuFocus++;
+              addSkuHighlight(items);
+          } 
+          else if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              skuFocus--;
+              addSkuHighlight(items);
+          } 
+          else if (event.key === 'Enter') {
+              event.preventDefault();
+
+              if (skuFocus > -1 && items.length > 0) {
+                  items[skuFocus].onmousedown(event);
+                  return; 
+              }
+
+              let skuValue = document.getElementById('sku-search').value.toUpperCase().trim();
+              if (box) box.style.display = 'none'; 
+
+              if (skuValue.startsWith("ASM-")) {
+                  showToast("Searching Assembly Database...", "info");
+                  checkAssemblyId(skuValue);
+              } else {
+                  let exactMatch = masterSkuData.find(row => String(row[0]).toUpperCase() === skuValue || String(row[1]).toUpperCase() === skuValue);
+                  if (exactMatch) {
+                      selectSku(exactMatch[0]);
+                  } else {
+                      document.getElementById('sku-search').value = skuValue;
+                      document.getElementById('box-qty').focus();
+                  }
+              }
+          }
+      }
+
+      // ==========================================
+      // STAFF COUNTERS & NAVIGATION LOGIC
+      // ==========================================
+
+      function handleStaffSearch(inputId, boxId) {
+          let input = document.getElementById(inputId);
+          let box = document.getElementById(boxId);
+          let query = input.value.toLowerCase().trim();
+
+          if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
+          staffFocus[inputId] = -1; 
+
+          if (!query) {
+              box.style.display = 'none';
+              return;
+          }
+
+          box.innerHTML = "";
+          
+          let matches = masterStaffData.filter(name => String(name).toLowerCase().includes(query));
+
+          matches.forEach((match, index) => {
+              let div = document.createElement("div");
+              div.style.padding = "10px";
+              div.style.cursor = "pointer";
+              div.style.borderBottom = "1px solid #eee";
+              div.innerHTML = match;
+              
+              div.onmousedown = function(event) { 
+                  event.preventDefault(); 
+                  selectStaff(inputId, match, boxId); 
+              };
+              
+              div.onmouseover = function() {
+                  removeStaffHighlight(box.getElementsByTagName("div"));
+                  div.style.backgroundColor = "#e3f2fd";
+                  staffFocus[inputId] = index;
+              };
+              
+              box.appendChild(div);
+          });
+          
+          box.style.display = matches.length > 0 ? 'block' : 'none'; 
+
+          staffTimers[inputId] = setTimeout(() => {
+              if (box.style.display === 'block') {
+                  input.value = ''; 
+                  box.style.display = 'none'; 
+              }
+          }, 5000);
+      }
+
+      function removeStaffHighlight(items) {
+          for (let i = 0; i < items.length; i++) {
+              items[i].style.backgroundColor = ""; 
+          }
+      }
+
+      function addStaffHighlight(items, inputId) {
+          if (!items || items.length === 0) return;
+          removeStaffHighlight(items);
+          
+          if (staffFocus[inputId] >= items.length) staffFocus[inputId] = 0;
+          if (staffFocus[inputId] < 0) staffFocus[inputId] = items.length - 1;
+          
+          items[staffFocus[inputId]].style.backgroundColor = "#e3f2fd"; 
+          items[staffFocus[inputId]].scrollIntoView({ block: "nearest" });
+      }
+
+      function selectStaff(inputId, name, boxId) {
+          document.getElementById(inputId).value = name;
+          document.getElementById(boxId).style.display = 'none';
+          
+          if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
+
+          if (inputId === 'counter-1') {
+              document.getElementById('counter-2').focus();
+          } else if (inputId === 'counter-2') {
+              triggerPreview(); 
+          }
+      }
+
+      function handleStaffKey(event, inputId, boxId) {
+          let box = document.getElementById(boxId);
+          let items = box ? box.getElementsByTagName("div") : [];
+          
+          if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              staffFocus[inputId]++;
+              addStaffHighlight(items, inputId);
+          } 
+          else if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              staffFocus[inputId]--;
+              addStaffHighlight(items, inputId);
+          }
+          else if (event.key === 'Enter') {
+              event.preventDefault();
+              
+              if (staffFocus[inputId] > -1 && items.length > 0) {
+                  items[staffFocus[inputId]].onmousedown(event);
+                  return; 
+              }
+
+              let input = document.getElementById(inputId);
+              let query = input.value.toLowerCase().trim();
+              if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
+
+              if (query !== "") {
+                  let matches = masterStaffData.filter(name => String(name).toLowerCase().includes(query));
+                  let exactMatch = matches.find(name => {
+                      let parts = String(name).toLowerCase().split(',');
+                      return parts.length > 1 && parts[1].trim() === query;
+                  });
+
+                  if (exactMatch) {
+                      input.value = exactMatch;
+                  } else if (matches.length > 0) {
+                      input.value = matches[0]; 
+                  }
+              }
+              
+              box.style.display = 'none';
+              
+              if (inputId === 'counter-1') {
+                  document.getElementById('counter-2').focus();
+              } else if (inputId === 'counter-2') {
+                  triggerPreview(); 
+              }
+          }
+      }
+
+      // ==========================================
+      // UTILITY INPUT HANDLERS & ASSEMBLY HOOK
+      // ==========================================
 
       function handleQtyEnter(e) {
           if (e.key === "Enter") {
@@ -1059,32 +1186,6 @@ function handleStaffKey(event, inputId, boxId) {
           }
       }
 
-      function enforceScannerOnly(e, inputId) {
-          if (e.key === 'Enter') { clearTimeout(scannerTimer); const boxId = inputId === 'counter-1' ? 'c1-suggestions' : 'c2-suggestions'; handleKeyNavigation(e, boxId); return; }
-          clearTimeout(scannerTimer); scannerTimer = setTimeout(() => { document.getElementById(inputId).value = ""; playErrorSound(); }, 500); 
-      }
-
-      function selectStaff(staffName, inputId) {
-         document.getElementById(inputId).value = staffName; document.getElementById(inputId === 'counter-1' ? 'c1-suggestions' : 'c2-suggestions').style.display = 'none'; playScanSound(); 
-         if (inputId === 'counter-1') { document.getElementById('counter-2').focus(); } else if (inputId === 'counter-2') { triggerPreview(); }
-      }
-
-      function handleSkuSearch() {
-        const query = document.getElementById('sku-search').value.toLowerCase();
-        const box = document.getElementById('sku-suggestions'); box.innerHTML = ''; 
-        if (query.length < 2) { box.style.display = 'none'; return; }
-        const matches = masterSkuData.filter(row => String(row[0]).toLowerCase().includes(query) || String(row[1]).toLowerCase().includes(query));
-        if (matches.length > 0) {
-            matches.slice(0, 10).forEach(match => { 
-                const div = document.createElement('div'); div.className = 'suggestion-item';
-                div.innerHTML = `<span class="suggestion-main">${match[0]}</span><span class="suggestion-sub">${match[1]}</span>`;
-                div.onclick = () => selectSku(match[0]); box.appendChild(div);
-            });
-            box.style.display = 'block';
-        } else box.style.display = 'none';
-      }
-
-      // --- EXTERNAL ASSEMBLY API HOOK (WITH SECURITY BLOCK) ---
       async function checkAssemblyId(assemblyId) {
           showToast("Searching Assembly Database...", "loading");
           try {
@@ -1137,56 +1238,6 @@ function handleStaffKey(event, inputId, boxId) {
           } catch(e) {
               hideToast(); showToast("Error connecting to Assembly Database.", "error");
           }
-      }
-
-      function handleKeyNavigation(e, boxId) {
-        if (e.key === "Enter") {
-            e.preventDefault(); 
-            let inputId = (boxId === 'sku-suggestions') ? 'sku-search' : (boxId === 'c1-suggestions' ? 'counter-1' : 'counter-2');
-            const currentInput = document.getElementById(inputId).value.trim().toLowerCase();
-            if (currentInput.length === 0) return;
-            let exactMatch = null;
-            if (inputId === 'sku-search') {
-                exactMatch = masterSkuData.find(row => String(row[0]).toLowerCase() === currentInput || String(row[1]).toLowerCase() === currentInput);
-                if (exactMatch) return selectSku(exactMatch[0]);
-                
-                // NEW: Falls back to Assembly Database lookup if local SKU is not found!
-                if (!exactMatch) {
-                    checkAssemblyId(currentInput);
-                    return;
-                }
-            } else {
-                exactMatch = masterStaffData.find(row => String(row[0]).toLowerCase() === currentInput || String(row[1] || "").toLowerCase() === currentInput);
-                if (exactMatch) return selectStaff(exactMatch[0], inputId);
-            }
-            const box = document.getElementById(boxId);
-            if (box.style.display === 'block') {
-                const items = box.getElementsByClassName('suggestion-item'); let currentIndex = -1;
-                for (let i = 0; i < items.length; i++) { if (items[i].classList.contains('active-suggestion')) { currentIndex = i; break; } }
-                if (currentIndex > -1) return items[currentIndex].click(); else if (items.length === 1) return items[0].click();
-            }
-            playErrorSound(); document.getElementById(inputId).value = ""; return;
-        }
-
-        const box = document.getElementById(boxId);
-        if (box.style.display !== 'block') return; 
-        const items = box.getElementsByClassName('suggestion-item');
-        if (items.length === 0) return;
-        let currentIndex = -1;
-        for (let i = 0; i < items.length; i++) { if (items[i].classList.contains('active-suggestion')) { currentIndex = i; break; } }
-        if (e.key === "ArrowDown") {
-            e.preventDefault(); 
-            if (currentIndex < items.length - 1) {
-                if (currentIndex > -1) items[currentIndex].classList.remove('active-suggestion');
-                items[currentIndex + 1].classList.add('active-suggestion'); items[currentIndex + 1].scrollIntoView({ block: "nearest" });
-            } else if (currentIndex === -1) { items[0].classList.add('active-suggestion'); items[0].scrollIntoView({ block: "nearest" }); }
-        } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            if (currentIndex > 0) {
-                items[currentIndex].classList.remove('active-suggestion');
-                items[currentIndex - 1].classList.add('active-suggestion'); items[currentIndex - 1].scrollIntoView({ block: "nearest" });
-            }
-        }
       }
 
       function triggerPreview() {
@@ -1574,7 +1625,7 @@ function handleStaffKey(event, inputId, boxId) {
           document.getElementById('pick-enter-pcs').disabled = true;
 
           apiCall('savePickedItems', { sheetName: activeSheetName, requestId: reqId, staffName: activePickerName, items: singlePickLog })
-             .catch(e => console.error("Silent background save delayed.", e));
+              .catch(e => console.error("Silent background save delayed.", e));
 
           showToast(`${skuItem.sku} Picked!`, "success");
 
@@ -1672,22 +1723,22 @@ function handleStaffKey(event, inputId, boxId) {
                       const logDateStr = log.date.split(' ')[0]; const [logM, logD, logY] = logDateStr.split('/');
                       if (`${logY}-${logM.padStart(2,'0')}-${logD.padStart(2,'0')}` !== dateFilter) match = false;
                   }
-                  if (searchFilter && match && !`${log.sku} ${log.c1} ${log.c2} ${log.requestId} box#${log.boxNum} ${log.lastReprintBy} ${log.receiveBy}`.toLowerCase().includes(searchFilter)) match = false;
+                  if (searchFilter && match && !`${log.sku} ${log.c1}${log.c2} ${log.requestId} box#${log.boxNum} ${log.lastReprintBy}${log.receiveBy}`.toLowerCase().includes(searchFilter)) match = false;
                   return match;
               });
           }
 
           if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #777;">No matching logs found.</td></tr>'; return; }
           filteredLogs.forEach(log => {
-              let counters = log.c2 && log.c2 !== "-" ? `${log.c1} / ${log.c2}` : log.c1;
+              let counters = log.c2 && log.c2 !== "-" ? `${log.c1} /${log.c2}` : log.c1;
               let reprintBadge = log.lastReprintBy && log.lastReprintBy !== "-" ? `<span style="font-size: 11px; background: #eee; padding: 2px 6px; border-radius: 4px;">👤 ${log.lastReprintBy}</span>` : `<span style="color:#aaa;">-</span>`;
               let isVoid = log.receiveBy && log.receiveBy.toString().toUpperCase().includes("VOID");
               let rowStyle = isVoid ? "background-color: #ffebee; text-decoration: line-through; opacity: 0.7;" : (log.receiveBy ? "background-color: #f1f8e9;" : "");
               let receiveStatus = isVoid ? `<span style="color: #d32f2f; font-weight:bold;">🚫 ${log.receiveBy}</span>` : (log.receiveBy ? `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${log.receiveBy}</span>` : `<span style="color: #F44336; font-weight:bold;">🔴 Pending</span>`);
               let actionButtons = isVoid ? `<span style="color:#d32f2f; font-weight:bold;">VOID</span>` : 
                   `<div style="display:flex; gap:5px; justify-content:center;">
-                      <button onclick="initiateReprint('${log.requestId}', '${log.sku}', '${log.barcode}', '${log.qty}', '${log.boxNum}', '${log.c1}', '${log.c2}', ${log.rowIndex})" class="orange-btn" title="Reprint">🖨️</button>
-                      <button onclick="initiateVoid('${log.boxNum}', ${log.rowIndex})" class="orange-btn" style="background-color: #F44336;" title="Void">🗑️</button>
+                      <button onclick="initiateReprint('${log.requestId}', '${log.sku}', '${log.barcode}', '${log.qty}', '${log.boxNum}', '${log.c1}', '${log.c2}',${log.rowIndex})" class="orange-btn" title="Reprint">🖨️</button>
+                      <button onclick="initiateVoid('${log.boxNum}',${log.rowIndex})" class="orange-btn" style="background-color: #F44336;" title="Void">🗑️</button>
                    </div>`;
               
               let checkboxHtml = !isVoid ? `<input type="checkbox" class="dash-cb" value="${log.boxNum}" style="transform: scale(1.5); cursor: pointer;">` : ``;
