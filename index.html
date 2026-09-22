@@ -173,9 +173,10 @@
 <!-- ========================================== -->
 <script>
 // Object to keep track of the timers for each input
+// Object to keep track of the timers for each input
 let staffTimers = {};
 
-// THE SEARCH LOGIC & 5-SECOND TIMER
+// 1. THE SEARCH LOGIC & 5-SECOND TIMER
 function handleStaffSearch(inputId, boxId) {
     let input = document.getElementById(inputId);
     let box = document.getElementById(boxId);
@@ -192,7 +193,7 @@ function handleStaffSearch(inputId, boxId) {
     // --- SEARCH MATCHING ---
     box.innerHTML = "";
     
-    // 🚨 IMPORTANT: Replace 'masterStaffData' with the actual name of your staff array! 
+    // 🚨 Ensure 'masterStaffData' matches your actual array name
     let matches = masterStaffData.filter(name => String(name).toLowerCase().includes(query));
 
     matches.forEach(match => {
@@ -202,8 +203,12 @@ function handleStaffSearch(inputId, boxId) {
         div.style.borderBottom = "1px solid #eee";
         div.innerHTML = match;
         
-        // When they click a name, it selects it
-        div.onclick = function() { selectStaff(inputId, match, boxId); };
+        // FIX: 'onmousedown' prevents the browser from glitching the click.
+        // It guarantees the click registers instantly before anything else happens!
+        div.onmousedown = function(event) { 
+            event.preventDefault(); 
+            selectStaff(inputId, match, boxId); 
+        };
         box.appendChild(div);
     });
     
@@ -216,7 +221,6 @@ function handleStaffSearch(inputId, boxId) {
 
     // Start the 5-second auto-delete countdown
     staffTimers[inputId] = setTimeout(() => {
-        // If the box is still open after 5 seconds, it means they didn't select a name
         if (box.style.display === 'block') {
             input.value = ''; // Auto-delete the abandoned text
             box.style.display = 'none'; // Hide the suggestion box
@@ -224,26 +228,49 @@ function handleStaffSearch(inputId, boxId) {
     }, 5000);
 }
 
-// THE CLICK SELECTION LOGIC
+// 2. THE CLICK SELECTION LOGIC
 function selectStaff(inputId, name, boxId) {
     document.getElementById(inputId).value = name;
     document.getElementById(boxId).style.display = 'none';
     
-    // They clicked a name! Cancel the delete timer so it stays safe.
+    // Cancel the delete timer so it stays safe.
     if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
+
+    // Auto-move to the next field after clicking a name!
+    if (inputId === 'counter-1') {
+        document.getElementById('counter-2').focus();
+    } else if (inputId === 'counter-2') {
+        document.getElementById('submit-btn').focus();
+    }
 }
 
-// THE BARCODE SCANNER OVERRIDE (Protects the Scan Code)
+// 3. THE BARCODE SCANNER OVERRIDE & AUTO-FILL
 function handleStaffKey(event, inputId, boxId) {
     if (event.key === 'Enter') {
-        // Barcode scanners automatically hit "Enter".
-        // Instantly cancel the 5-second timer so the scan is NEVER deleted.
+        event.preventDefault(); // Stops the page from accidentally refreshing
+        
+        let input = document.getElementById(inputId);
+        let box = document.getElementById(boxId);
+        let query = input.value.toLowerCase().trim();
+        
+        // Instantly cancel the auto-delete timer
         if (staffTimers[inputId]) clearTimeout(staffTimers[inputId]);
+
+        // --- THE DIRECT LOOKUP FIX ---
+        // Instantly check the array for the scanned code (like "mik-236").
+        if (query !== "") {
+            let matches = masterStaffData.filter(name => String(name).toLowerCase().includes(query));
+            
+            // If the system finds exactly ONE match for that code, auto-fill it!
+            if (matches.length === 1) {
+                input.value = matches[0];
+            }
+        }
         
-        // Hide the suggestion box
-        document.getElementById(boxId).style.display = 'none';
+        // Hide the dropdown box
+        box.style.display = 'none';
         
-        // Move focus to the next logical step
+        // Move focus to the next logical step automatically
         if (inputId === 'counter-1') {
             document.getElementById('counter-2').focus();
         } else if (inputId === 'counter-2') {
