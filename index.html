@@ -1241,39 +1241,48 @@
       }
 
       function triggerPreview() {
-        clearInterval(countdownTimer); 
-        const skuInput = document.getElementById('sku-search').value; const qty = document.getElementById('box-qty').value;
-        const c1 = document.getElementById('counter-1').value.trim(); const c2 = document.getElementById('counter-2').value.trim();
-        if (!skuInput || !qty || !c1 || !c2) return triggerErrorModal("Please fill in all fields before submitting.", "sku-search");
-        
-        // Removed exact local dropdown requirement so the Assembly SKU can properly submit
-        const itemDetails = masterSkuData.find(row => row[0] === skuInput) || [skuInput, "-", "-"];
-        
-        const validNames = masterStaffData.map(row => String(row[0]).toLowerCase());
-        
-        // Allows submitting without counter validation if pulled from assembly
-        if (!validNames.includes(c1.toLowerCase()) && !c1.includes(',')) return triggerErrorModal("Invalid Counter 1 Name.", "counter-1");
-        
-        pendingPayload = { sheetName: activeSheetName, requestId: activeRequestId, sku: itemDetails[0], barcode: itemDetails[1], category: itemDetails[2], qty: qty, c1: c1, c2: c2 };
+    clearInterval(countdownTimer); 
+    const skuInput = document.getElementById('sku-search').value; const qty = document.getElementById('box-qty').value;
+    const c1 = document.getElementById('counter-1').value.trim(); const c2 = document.getElementById('counter-2').value.trim();
+    if (!skuInput || !qty || !c1 || !c2) return triggerErrorModal("Please fill in all fields before submitting.", "sku-search");
+    
+    // Removed exact local dropdown requirement so the Assembly SKU can properly submit
+    const itemDetails = masterSkuData.find(row => row[0] === skuInput) || [skuInput, "-", "-"];
+    
+    const validNames = masterStaffData.map(row => String(row[0]).toLowerCase());
+    
+    // 🚨 STRICT VALIDATION: Blocks submission if the name is not fully resolved!
+    if (!validNames.includes(c1.toLowerCase()) && !c1.includes(',')) {
+        document.getElementById('counter-1').value = ""; // Auto-clear the bad scan
+        return triggerErrorModal("Invalid Counter 1 Name. The scanned ID was not recognized.", "counter-1");
+    }
+    
+    // 🚨 FIX: Added the missing validation for Counter 2!
+    if (!validNames.includes(c2.toLowerCase()) && !c2.includes(',')) {
+        document.getElementById('counter-2').value = ""; // Auto-clear the bad scan
+        return triggerErrorModal("Invalid Counter 2 Name. The scanned ID was not recognized.", "counter-2");
+    }
+    
+    pendingPayload = { sheetName: activeSheetName, requestId: activeRequestId, sku: itemDetails[0], barcode: itemDetails[1], category: itemDetails[2], qty: qty, c1: c1, c2: c2 };
 
-        const now = new Date();
-        document.getElementById('mod-date').innerText = now.toLocaleDateString() + " " + now.toLocaleTimeString();
-        document.getElementById('mod-request').innerText = activeRequestId;
-        document.getElementById('mod-sku').innerText = itemDetails[0];
-        document.getElementById('mod-qty').innerText = qty;
-        document.getElementById('mod-c1').innerText = c1;
-        document.getElementById('mod-c2-wrap').style.display = 'block'; document.getElementById('mod-c2').innerText = c2;
-        document.getElementById('btn-confirm-print').disabled = false; document.getElementById('btn-confirm-print').innerText = "Print (Enter)";
-        document.getElementById('btn-reentry').disabled = false;
-        closeAllModals(); document.getElementById('success-modal').style.display = 'flex';
-        setTimeout(() => document.getElementById('btn-confirm-print').focus(), 100);
+    const now = new Date();
+    document.getElementById('mod-date').innerText = now.toLocaleDateString() + " " + now.toLocaleTimeString();
+    document.getElementById('mod-request').innerText = activeRequestId;
+    document.getElementById('mod-sku').innerText = itemDetails[0];
+    document.getElementById('mod-qty').innerText = qty;
+    document.getElementById('mod-c1').innerText = c1;
+    document.getElementById('mod-c2-wrap').style.display = 'block'; document.getElementById('mod-c2').innerText = c2;
+    document.getElementById('btn-confirm-print').disabled = false; document.getElementById('btn-confirm-print').innerText = "Print (Enter)";
+    document.getElementById('btn-reentry').disabled = false;
+    closeAllModals(); document.getElementById('success-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('btn-confirm-print').focus(), 100);
 
-        timeLeft = 5; document.getElementById('timer-display').innerHTML = `Auto-printing in <span id="timer-count">${timeLeft}</span> seconds...`;
-        countdownTimer = setInterval(() => {
-            timeLeft--; const tc = document.getElementById('timer-count'); if (tc) tc.innerText = timeLeft;
-            if (timeLeft <= 0) { clearInterval(countdownTimer); actionPrint(); }
-        }, 1000);
-      }
+    timeLeft = 5; document.getElementById('timer-display').innerHTML = `Auto-printing in <span id="timer-count">${timeLeft}</span> seconds...`;
+    countdownTimer = setInterval(() => {
+        timeLeft--; const tc = document.getElementById('timer-count'); if (tc) tc.innerText = timeLeft;
+        if (timeLeft <= 0) { clearInterval(countdownTimer); actionPrint(); }
+    }, 1000);
+}
 
       async function actionPrint() {
           clearInterval(countdownTimer); 
