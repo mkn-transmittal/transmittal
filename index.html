@@ -53,7 +53,7 @@
       th, td { padding: 12px 10px; border-bottom: 1px solid #eee; }
       th { background-color: #f8f9fa; position: sticky; top: 0; z-index: 10; color: #444;}
       .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 4000; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
-      .modal-card { background: white; padding: 30px; border-radius: 16px; text-align: center; width: 90%; max-width: 380px; box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
+      .modal-card { background: white; padding: 30px; border-radius: 16px; text-align: center; width: 90%; max-width: 380px; box-shadow: 0 15px 30px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
       .modal-icon-success { font-size: 60px; margin-bottom: 5px; color: #4CAF50; }
       .modal-icon-error { font-size: 60px; margin-bottom: 5px; color: #F44336; }
       .success-title { color: #4CAF50; font-weight: bold; font-size: 26px; margin-bottom: 15px; }
@@ -76,6 +76,12 @@
       .responsive-filter-item { display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 200px; }
       .responsive-filter-btn { margin:0; height: 42px; padding: 0 15px; font-size: 14px; width: auto; background-color: #2196F3; }
       @media (max-width: 600px) { .responsive-filter-item { width: 100%; min-width: 100%; } .responsive-filter-btn { width: 100%; margin-top: 10px; } }
+      .box-lines { display: none; margin: 0 5% 15px 5%; text-align: left; border: 2px dashed #90caf9; border-radius: 8px; padding: 10px; background: #f8fbff; }
+      .box-lines-head { font-weight: bold; font-size: 12px; color: #1976D2; margin-bottom: 6px; }
+      .box-line { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #e3eefb; font-size: 14px; }
+      .box-line:last-child { border-bottom: none; }
+      .box-line .bl-sku { flex: 1; word-break: break-word; }
+      .box-line .bl-del { width: auto; margin: 0; padding: 2px 9px; font-size: 12px; background: #F44336; }
       @media print {
         html, body { width: 150mm; height: auto; margin: 0 !important; padding: 0 !important; background: white !important; }
         body * { visibility: hidden !important; } 
@@ -120,7 +126,7 @@
     <div class="container" id="scanner-section" style="display: none; max-width: 480px;">
         <div class="nav-bar">
             <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-            <span style="font-size: 14px; font-weight: bold; color: #555;">DB: <span id="db-target-name" style="color:#2196F3;"></span></span>
+            <span style="font-size: 14px; font-weight: bold; color: #555;">DB: <span id="db-target-name" style="color:#2196F3;"></span><select id="shipment-type" onchange="onShipmentTypeChange()" style="display:none; width:auto; margin:0; padding:6px 8px; font-size:14px; font-weight:bold; color:#2196F3; border:1px solid #90caf9; background:white;"><option value="TCC">TCCShipment</option><option value="BLC">BLCShipment</option><option value="RTL">RTLShipment</option></select></span>
         </div>
 
         <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; border: 2px solid #2196F3; margin-bottom: 20px; text-align: left;">
@@ -145,6 +151,15 @@
             <label>Quantity:</label>
             <input type="text" id="box-qty" placeholder="Enter Box Qty" onkeydown="handleQtyEnter(event)" inputmode="none" autocomplete="off">
 
+            <!-- BLC / RTL only: multi-SKU box builder -->
+            <button onclick="addBoxLine()" id="add-line-btn" style="display:none; width:90%; margin: -8px 0 15px 5%; background-color:#4CAF50;">➕ Add Item to Box</button>
+            <div id="box-lines-area" class="box-lines">
+                <div class="box-lines-head">📦 ITEMS IN THIS BOX (<span id="box-lines-count">0</span>) &nbsp;|&nbsp; TOTAL QTY: <span id="box-lines-total">0</span></div>
+                <div id="box-lines-list"></div>
+            </div>
+
+            <div id="counter-fields">
+
             <label>Counter 1:</label>
             <div class="input-row">
                 <div style="position: relative; width: 100%;">
@@ -163,6 +178,7 @@
                 <button class="cam-btn" onclick="openCamera('counter-2')">📷</button>
             </div>
 
+            </div><!-- /counter-fields -->
             <button onclick="triggerPreview()" id="submit-btn" class="blue-btn">Review & Print Label</button>
         </div>
     </div>
@@ -405,9 +421,10 @@
             <div class="modal-details">
                 <p>Date: <span id="mod-date"></span></p>
                 <p>Request: <span id="mod-request"></span></p>
-                <p>SKU: <span id="mod-sku"></span></p>
-                <p>Qty: <span id="mod-qty"></span></p>
-                <p>C1: <span id="mod-c1"></span></p>
+                <div id="mod-lines" style="display:none;"></div>
+                <p id="mod-sku-wrap">SKU: <span id="mod-sku"></span></p>
+                <p id="mod-qty-wrap">Qty: <span id="mod-qty"></span></p>
+                <p id="mod-c1-wrap">C1: <span id="mod-c1"></span></p>
                 <p id="mod-c2-wrap">C2: <span id="mod-c2"></span></p>
             </div>
             <div class="modal-btn-group">
@@ -501,7 +518,14 @@
       // ==========================================
       const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzAS9z14TLBnXyFfLNZab-Td6PmN4NUMP16he3QCuhhSkjiXlH1eQtZRef8Flnh9SWF/exec"; 
       
-      let activeSheetName = ""; 
+      let activeSheetName = ""; // effective sheet (changes with the shipment dropdown)
+      let baseSheetName = "";   // sheet from login
+      let shipmentType = "TCC"; // TCC | BLC | RTL
+      let boxLines = [];        // BLC/RTL: items in the box being built
+      let activeAssemblyId = "";
+      let pendingVoidRows = [];
+      const MAX_BOX_LINES = 10; // keeps the 150x100mm label readable
+      const SHIPMENT_SHEETS = { TCC: null, BLC: "BLCSHIPMENT", RTL: "RTLSHIPMENT" }; 
       let accessLevel = "";
       let activeRequestId = ""; 
       let activeOpsName = ""; 
@@ -577,6 +601,34 @@
           let html = "";
           configs.forEach(cfg => {
               const dateStr = cfg.date || (new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString());
+
+              // ---- BLC / RTL: one box, many SKUs ----
+              if (cfg.lines && cfg.lines.length) {
+                  const n = cfg.lines.length;
+                  const twoCol = n > 5;
+                  const fs = twoCol ? 12 : 15;
+                  const rows = cfg.lines.map(l => `
+                      <div style="display:flex; justify-content:space-between; gap:6px; border-bottom:1px dotted #999; padding:1px 0; break-inside:avoid; font-size:${fs}px;">
+                          <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(l.sku)}</span>
+                          <b style="white-space:nowrap;">${escHtml(l.qty)}</b>
+                      </div>`).join("");
+                  html += `
+                  <div class="thermal-label">
+                      <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid black; padding-bottom: 4px; width: 100%;">
+                          <div style="display: flex; flex-direction: column;">
+                              <span style="font-size: 14px; color: #222;">${dateStr}</span>
+                              <span style="font-size: 26px; font-weight: bold; margin-top: 2px;">Box #${cfg.boxNum}</span>
+                          </div>
+                          <div style="text-align: right;"><div id="qr-${cfg.id}"></div></div>
+                      </div>
+                      <div style="font-size: 15px; font-weight: bold; color: #333; text-align: center; width: 100%;">Request ID: ${escHtml(cfg.reqId)}</div>
+                      <div style="width:100%; flex:1; min-height:0; overflow:hidden; ${twoCol ? 'column-count:2; column-gap:14px;' : ''}">${rows}</div>
+                      <div style="font-size: 22px; font-weight: bold; text-align: center; width: 100%;">${n} item(s) &nbsp;|&nbsp; Total Qty: ${escHtml(cfg.qty)}</div>
+                      <div style="text-align: center; width: 100%;"><svg id="bc-${cfg.id}"></svg></div>
+                  </div>`;
+                  return;
+              }
+
               let leftFooter = cfg.c1 || "-";
               let rightFooter = cfg.c2 || "-";
               if (leftFooter.includes("Picked (")) { 
@@ -611,7 +663,10 @@
           document.getElementById('print-container').style.display = 'block';
 
           configs.forEach(cfg => {
-              try { JsBarcode(`#bc-${cfg.id}`, cfg.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); } catch(e){}
+              const multi = !!(cfg.lines && cfg.lines.length);
+              try { JsBarcode(`#bc-${cfg.id}`, cfg.barcode, multi
+                  ? { format: "CODE128", width: 2, height: 40, displayValue: true, fontSize: 14, margin: 0 }
+                  : { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); } catch(e){}
               try { new QRCode(document.getElementById(`qr-${cfg.id}`), { text: cfg.reqId + "|BOX-" + cfg.boxNum, width: 64, height: 64, colorDark: "#000", colorLight: "#fff", correctLevel: QRCode.CorrectLevel.M }); } catch(e){}
           });
 
@@ -695,10 +750,13 @@
               const savedOps = sessionStorage.getItem("activeOpsName");
 
               if (savedSheet && savedLevel) {
-                  activeSheetName = savedSheet; accessLevel = savedLevel;
+                  accessLevel = savedLevel; baseSheetName = sessionStorage.getItem("baseSheetName") || savedSheet;
+                  shipmentType = sessionStorage.getItem("shipmentType") || "TCC"; if (!isAssemblyLogin() || !SHIPMENT_SHEETS.hasOwnProperty(shipmentType)) shipmentType = "TCC";
+                  activeSheetName = resolveSheetName();
+                  try { boxLines = isMultiMode() ? JSON.parse(sessionStorage.getItem("boxLines") || "[]") : []; } catch(e) { boxLines = []; }
                   hideAllSections(); 
                   document.getElementById('scanner-section').style.display = 'block'; 
-                  document.getElementById('db-target-name').innerText = activeSheetName;
+                  applyShipmentUI();
                   if (savedOps) activeOpsName = savedOps;
 
                   loadMasterData(); await loadRequestIds();
@@ -817,6 +875,7 @@
           toggleSidebar(); sessionStorage.clear(); 
           activeSheetName = ""; accessLevel = ""; activeRequestId = ""; activeOpsName = ""; lastLockedTarget = "";
           masterSkuData = []; masterStaffData = []; masterOpsData = []; globalPickListCache = [];
+          baseSheetName = ""; shipmentType = "TCC"; boxLines = []; activeAssemblyId = ""; applyShipmentUI();
           document.getElementById('admin-password').value = ""; document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
           document.getElementById('scanner-request-input').value = "";
           hideAllSections(); closeAllModals(); lockScannerInputs();
@@ -862,10 +921,11 @@
             const response = await apiCall('verifyAdminPassword', { pass: pass });
             hideToast(); document.getElementById('btn-login').disabled = false;
             if (response.valid) {
-              activeSheetName = response.sheetName; accessLevel = response.type;
+              baseSheetName = response.sheetName; shipmentType = "TCC"; boxLines = []; activeSheetName = resolveSheetName(); accessLevel = response.type;
+              sessionStorage.setItem("baseSheetName", baseSheetName); sessionStorage.setItem("shipmentType", shipmentType);
               sessionStorage.setItem("activeSheetName", activeSheetName); sessionStorage.setItem("accessLevel", accessLevel);
               hideAllSections(); document.getElementById('scanner-section').style.display = 'block'; 
-              document.getElementById('db-target-name').innerText = activeSheetName;
+              applyShipmentUI();
               loadMasterData(); await loadRequestIds(); lockScannerInputs(); 
               apiCall('getOpsTeam').then(ops => masterOpsData = ops).catch(e => console.log(e));
             } else { errorMsg.style.display = 'block'; playErrorSound(); }
@@ -905,6 +965,10 @@
       function confirmScannerRequest() {
           const val = document.getElementById('scanner-request-input').value.trim();
           if(!val || val === "undefined") { lockScannerInputs(); lastLockedTarget = ""; return; }
+          if (isMultiMode() && boxLines.length > 0 && val !== activeRequestId) {
+              if (!confirm("You have items in an unfinished box for " + activeRequestId + ". Switching Request ID will discard them. Continue?")) { document.getElementById('scanner-request-input').value = activeRequestId; return; }
+              boxLines = []; renderBoxLines();
+          }
           if (val !== lastLockedTarget) { lastLockedTarget = val; playScanSound(); showToast("Target Locked: " + val, "success"); }
           activeRequestId = val; sessionStorage.setItem("activeRequestId", activeRequestId);
           const scannerList = document.getElementById('scanner-req-list');
@@ -1027,6 +1091,18 @@
 
               let skuValue = document.getElementById('sku-search').value.toUpperCase().trim();
               if (box) box.style.display = 'none'; 
+
+              if (isMultiMode()) {
+                  if (!skuValue) return;
+                  let m = masterSkuData.find(r => String(r[0]).toUpperCase() === skuValue || String(r[1]).toUpperCase() === skuValue);
+                  if (!m) {
+                      const partial = masterSkuData.filter(r => String(r[0]).toUpperCase().includes(skuValue) || String(r[1]).toUpperCase().includes(skuValue));
+                      if (partial.length === 1) m = partial[0];
+                  }
+                  if (m) { selectSku(m[0]); }
+                  else { playErrorSound(); document.getElementById('sku-search').value = ""; showToast("SKU not found: " + skuValue, "error"); }
+                  return;
+              }
 
               if (skuValue.startsWith("ASM-")) {
                   showToast("Searching Assembly Database...", "info");
@@ -1182,7 +1258,7 @@
       function handleQtyEnter(e) {
           if (e.key === "Enter") {
               e.preventDefault(); const qty = document.getElementById('box-qty').value;
-              if (qty && qty > 0) { playScanSound(); document.getElementById('counter-1').focus(); } else { playErrorSound(); }
+              if (qty && qty > 0) { playScanSound(); if (isMultiMode()) addBoxLine(); else document.getElementById('counter-1').focus(); } else { playErrorSound(); }
           }
       }
 
@@ -1241,6 +1317,7 @@
       }
 
       function triggerPreview() {
+    if (isMultiMode()) return triggerMultiPreview();
     clearInterval(countdownTimer); 
     const skuInput = document.getElementById('sku-search').value; const qty = document.getElementById('box-qty').value;
     const c1 = document.getElementById('counter-1').value.trim(); const c2 = document.getElementById('counter-2').value.trim();
@@ -1263,7 +1340,7 @@
         return triggerErrorModal("Invalid Counter 2 Name. The scanned ID was not recognized.", "counter-2");
     }
     
-    pendingPayload = { sheetName: activeSheetName, requestId: activeRequestId, sku: itemDetails[0], barcode: itemDetails[1], category: itemDetails[2], qty: qty, c1: c1, c2: c2 };
+    pendingPayload = { sheetName: activeSheetName, requestId: activeRequestId, sku: itemDetails[0], barcode: itemDetails[1], category: itemDetails[2], qty: qty, c1: c1, c2: c2, assemblyId: activeAssemblyId || "" };
 
     const now = new Date();
     document.getElementById('mod-date').innerText = now.toLocaleDateString() + " " + now.toLocaleTimeString();
@@ -1271,7 +1348,7 @@
     document.getElementById('mod-sku').innerText = itemDetails[0];
     document.getElementById('mod-qty').innerText = qty;
     document.getElementById('mod-c1').innerText = c1;
-    document.getElementById('mod-c2-wrap').style.display = 'block'; document.getElementById('mod-c2').innerText = c2;
+    setPreviewMode(false); document.getElementById('mod-c2-wrap').style.display = 'block'; document.getElementById('mod-c2').innerText = c2;
     document.getElementById('btn-confirm-print').disabled = false; document.getElementById('btn-confirm-print').innerText = "Print (Enter)";
     document.getElementById('btn-reentry').disabled = false;
     closeAllModals(); document.getElementById('success-modal').style.display = 'flex';
@@ -1292,7 +1369,8 @@
           btnPrint.innerText = "Connecting to Database..."; btnPrint.disabled = true; btnReentry.disabled = true; timerText.innerText = "Securing official Box Number from Google...";
           
           try {
-              const response = await apiCall('saveTransmittalData', { payload: pendingPayload });
+              const isMulti = !!pendingPayload.multi;
+              const response = await apiCall(isMulti ? 'saveMultiSkuTransmittal' : 'saveTransmittalData', { payload: pendingPayload });
               playSuccessSubmitSound(); closeAllModals();
               
               let config = [{
@@ -1306,7 +1384,13 @@
                   c1: pendingPayload.c1, 
                   c2: pendingPayload.c2
               }];
+              if (isMulti) {
+                  const items = pendingPayload.items; const total = items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
+                  config = [{ id: 't1', date: config[0].date, boxNum: response.boxNumber, reqId: pendingPayload.requestId, sku: items.length + " item(s)", qty: total, barcode: "BOX-" + response.boxNumber, c1: "", c2: "", lines: items }];
+              }
               printLabelHTML(config);
+              if (isMulti) { boxLines = []; renderBoxLines(); }
+              activeAssemblyId = "";
 
               document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = ""; document.getElementById('counter-1').value = ""; document.getElementById('counter-2').value = "";
               btnPrint.innerText = "Print (Enter)"; btnPrint.disabled = false; btnReentry.disabled = false; timerText.innerText = "";
@@ -1383,7 +1467,7 @@
           
           showToast("Loading Pick List...", "loading");
           try {
-              const items = await apiCall('getPickRequestDetails', { sheetName: activeSheetName, requestId: reqId });
+              const items = await apiCall('getPickRequestDetails', { sheetName: baseSheetName, requestId: reqId });
               hideToast();
               globalPickListCache = items; 
               const tbody = document.getElementById('pick-request-table-body'); tbody.innerHTML = '';
@@ -1633,7 +1717,7 @@
           document.getElementById('pick-enter-boxes').disabled = true; 
           document.getElementById('pick-enter-pcs').disabled = true;
 
-          apiCall('savePickedItems', { sheetName: activeSheetName, requestId: reqId, staffName: activePickerName, items: singlePickLog })
+          apiCall('savePickedItems', { sheetName: baseSheetName, requestId: reqId, staffName: activePickerName, items: singlePickLog })
               .catch(e => console.error("Silent background save delayed.", e));
 
           showToast(`${skuItem.sku} Picked!`, "success");
@@ -1708,7 +1792,7 @@
           showToast("Loading Logs...", "loading");
           try {
               const logs = await apiCall('getDashboardLogs', { sheetName: activeSheetName, requestId: reqId });
-              hideToast(); currentDashboardLogs = logs || []; applyFilters(); 
+              hideToast(); currentDashboardLogs = isMultiMode() ? groupLogsByBox(logs) : (logs || []); applyFilters(); 
           } catch(e) { hideToast(); showToast("Failed to load logs", "error"); }
       }
 
@@ -1739,15 +1823,15 @@
 
           if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #777;">No matching logs found.</td></tr>'; return; }
           filteredLogs.forEach(log => {
-              let counters = log.c2 && log.c2 !== "-" ? `${log.c1} /${log.c2}` : log.c1;
+              let counters = log.c2 && log.c2 !== "-" ? `${log.c1} /${log.c2}` : (log.c1 || "-");
               let reprintBadge = log.lastReprintBy && log.lastReprintBy !== "-" ? `<span style="font-size: 11px; background: #eee; padding: 2px 6px; border-radius: 4px;">👤 ${log.lastReprintBy}</span>` : `<span style="color:#aaa;">-</span>`;
               let isVoid = log.receiveBy && log.receiveBy.toString().toUpperCase().includes("VOID");
               let rowStyle = isVoid ? "background-color: #ffebee; text-decoration: line-through; opacity: 0.7;" : (log.receiveBy ? "background-color: #f1f8e9;" : "");
               let receiveStatus = isVoid ? `<span style="color: #d32f2f; font-weight:bold;">🚫 ${log.receiveBy}</span>` : (log.receiveBy ? `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${log.receiveBy}</span>` : `<span style="color: #F44336; font-weight:bold;">🔴 Pending</span>`);
               let actionButtons = isVoid ? `<span style="color:#d32f2f; font-weight:bold;">VOID</span>` : 
                   `<div style="display:flex; gap:5px; justify-content:center;">
-                      <button onclick="initiateReprint('${log.requestId}', '${log.sku}', '${log.barcode}', '${log.qty}', '${log.boxNum}', '${log.c1}', '${log.c2}',${log.rowIndex})" class="orange-btn" title="Reprint">🖨️</button>
-                      <button onclick="initiateVoid('${log.boxNum}',${log.rowIndex})" class="orange-btn" style="background-color: #F44336;" title="Void">🗑️</button>
+                      <button onclick="${log.items ? ("initiateReprintGroup('" + encodeURIComponent(log.requestId) + "','" + log.boxNum + "')") : `initiateReprint('${log.requestId}', '${log.sku}', '${log.barcode}', '${log.qty}', '${log.boxNum}', '${log.c1}', '${log.c2}',${log.rowIndex})`}" class="orange-btn" title="Reprint">🖨️</button>
+                      <button onclick="${log.items ? ("initiateVoidGroup('" + encodeURIComponent(log.requestId) + "','" + log.boxNum + "')") : `initiateVoid('${log.boxNum}',${log.rowIndex})`}" class="orange-btn" style="background-color: #F44336;" title="Void">🗑️</button>
                    </div>`;
               
               let checkboxHtml = !isVoid ? `<input type="checkbox" class="dash-cb" value="${log.boxNum}" style="transform: scale(1.5); cursor: pointer;">` : ``;
@@ -1757,7 +1841,7 @@
                       <td style="text-align: center;">${checkboxHtml}</td>
                       <td><span style="background: #eef2f3; padding: 4px 8px; border-radius: 4px;">${log.requestId}</span></td>
                       <td><b>Box #${log.boxNum}</b></td>
-                      <td>${log.sku}</td>
+                      <td>${skuCellHtml(log)}</td>
                       <td><b>${log.qty}</b></td>
                       <td>${counters}</td>
                       <td>${log.date}</td>
@@ -1790,7 +1874,8 @@
               reqId: log.requestId,
               sku: log.sku,
               qty: log.qty,
-              barcode: log.barcode || "-",
+              barcode: log.items ? ("BOX-" + log.boxNum) : (log.barcode || "-"),
+              lines: log.items,
               c1: log.c1,
               c2: log.c2
           }));
@@ -1826,7 +1911,8 @@
               qty: data.qty, 
               barcode: data.barcode, 
               c1: data.c1, 
-              c2: data.c2
+              c2: data.c2,
+              lines: data.lines
           }];
           printLabelHTML(config);
           closeAllModals(); document.getElementById('reprint-modal').style.display = 'flex';
@@ -1847,7 +1933,7 @@
       }
 
       function initiateVoid(boxNum, rowIndex) {
-          pendingVoidRow = rowIndex; document.getElementById('void-box-target').innerText = boxNum; closeAllModals();
+          pendingVoidRows = []; pendingVoidRow = rowIndex; document.getElementById('void-box-target').innerText = boxNum; closeAllModals();
           document.getElementById('void-auth-input').value = ""; document.getElementById('void-auth-modal').style.display = 'flex';
           setTimeout(() => document.getElementById('void-auth-input').focus(), 100);
       }
@@ -1867,9 +1953,162 @@
           if (!pendingVoidRow) return; showToast("Voiding Box...", "loading");
 
           try {
-              await apiCall('voidBox', { sheetName: activeSheetName, rowIndex: pendingVoidRow, staffName: staffName });
-              pendingVoidRow = null; loadDashboardData(); showToast("Box successfully voided!", "success");
+              const voidRows = pendingVoidRows.length ? pendingVoidRows : [pendingVoidRow];
+              for (const r of voidRows) { await apiCall('voidBox', { sheetName: activeSheetName, rowIndex: r, staffName: staffName }); }
+              pendingVoidRow = null; pendingVoidRows = []; loadDashboardData(); showToast("Box successfully voided!", "success");
           } catch(e) { showToast("Failed to void box.", "error"); }
+      }
+
+      // ==========================================
+      // SHIPMENT TYPE (TCC / BLC / RTL) + MULTI-SKU BOX
+      // ==========================================
+
+      function escHtml(s) { return String(s === undefined || s === null ? "" : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+      function isMultiMode() { return shipmentType === 'BLC' || shipmentType === 'RTL'; }
+      function isAssemblyLogin() { return String(baseSheetName).toLowerCase() === 'assemblyshipment'; }
+      function resolveSheetName() { return (isAssemblyLogin() && SHIPMENT_SHEETS[shipmentType]) ? SHIPMENT_SHEETS[shipmentType] : baseSheetName; }
+
+      function applyShipmentUI() {
+          const showDropdown = isAssemblyLogin();
+          const sel = document.getElementById('shipment-type');
+          const label = document.getElementById('db-target-name');
+          sel.style.display = showDropdown ? 'inline-block' : 'none';
+          sel.value = shipmentType;
+          label.style.display = showDropdown ? 'none' : 'inline';
+          label.innerText = activeSheetName;
+          const multi = isMultiMode();
+          document.getElementById('counter-fields').style.display = multi ? 'none' : 'block';
+          document.getElementById('add-line-btn').style.display = multi ? 'block' : 'none';
+          document.getElementById('box-lines-area').style.display = multi ? 'block' : 'none';
+          document.getElementById('submit-btn').innerText = multi ? '✅ Done — Review & Print Box' : 'Review & Print Label';
+          renderBoxLines();
+      }
+
+      function onShipmentTypeChange() {
+          const sel = document.getElementById('shipment-type');
+          const newType = sel.value;
+          if (newType === shipmentType) return;
+          if (boxLines.length > 0 && !confirm("You have items in an unfinished box. Switching shipment type will discard them. Continue?")) { sel.value = shipmentType; return; }
+          boxLines = [];
+          shipmentType = newType; sessionStorage.setItem("shipmentType", shipmentType);
+          activeSheetName = resolveSheetName(); sessionStorage.setItem("activeSheetName", activeSheetName);
+          // each shipment tab has its own Request IDs -> unlock and start fresh
+          activeRequestId = ""; lastLockedTarget = ""; sessionStorage.removeItem("activeRequestId");
+          ['scanner-request-input','sku-search','box-qty','counter-1','counter-2','dashboard-request-input','receive-request-input'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+          currentDashboardLogs = [];
+          document.getElementById('receive-table-body').innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">Select a Request ID above to view checklist.</td></tr>';
+          lockScannerInputs(); applyShipmentUI(); loadRequestIds();
+          showToast("Switched to " + sel.options[sel.selectedIndex].text, "success");
+          setTimeout(() => document.getElementById('scanner-request-input').focus(), 50);
+      }
+
+      function renderBoxLines() {
+          try { sessionStorage.setItem("boxLines", JSON.stringify(boxLines)); } catch(e) {}
+          const list = document.getElementById('box-lines-list'); if (!list) return;
+          const total = boxLines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+          document.getElementById('box-lines-count').innerText = boxLines.length;
+          document.getElementById('box-lines-total').innerText = total;
+          list.innerHTML = boxLines.length === 0
+              ? '<div style="color:#999; font-size:13px;">No items yet. Scan a SKU, enter its qty, press Enter.</div>'
+              : boxLines.map((l, i) => `<div class="box-line"><span class="bl-sku">${escHtml(l.sku)}</span><span><b>× ${escHtml(l.qty)}</b></span><button class="bl-del" onclick="removeBoxLine(${i})" title="Remove">✖</button></div>`).join('');
+      }
+
+      function removeBoxLine(i) { boxLines.splice(i, 1); renderBoxLines(); setTimeout(() => document.getElementById('sku-search').focus(), 10); }
+
+      function addBoxLine() {
+          const skuInput = document.getElementById('sku-search').value.trim();
+          const qtyStr = document.getElementById('box-qty').value.trim();
+          if (!skuInput) { triggerErrorModal("Scan or type a SKU first.", "sku-search"); return false; }
+          const item = masterSkuData.find(r => String(r[0]) === skuInput);
+          if (!item) { document.getElementById('sku-search').value = ""; triggerErrorModal("SKU not found in the master list. Please scan again.", "sku-search"); return false; }
+          const q = Number(qtyStr);
+          if (!qtyStr || !isFinite(q) || q <= 0) { triggerErrorModal("Enter a valid quantity for this SKU.", "box-qty"); return false; }
+          const existing = boxLines.find(l => l.sku === item[0]);
+          if (existing) { existing.qty += q; showToast("Qty added to existing line: " + item[0], "success"); }
+          else {
+              if (boxLines.length >= MAX_BOX_LINES) { triggerErrorModal("This box already has " + MAX_BOX_LINES + " different SKUs (label limit). Click Done to print it, then start a new box.", "sku-search"); return false; }
+              boxLines.push({ sku: item[0], barcode: item[1], category: item[2], qty: q });
+              playMatchSound();
+          }
+          document.getElementById('sku-search').value = ""; document.getElementById('box-qty').value = "";
+          renderBoxLines();
+          setTimeout(() => document.getElementById('sku-search').focus(), 10);
+          return true;
+      }
+
+      function setPreviewMode(multi) {
+          document.getElementById('mod-lines').style.display = multi ? 'block' : 'none';
+          ['mod-sku-wrap','mod-qty-wrap','mod-c1-wrap','mod-c2-wrap'].forEach(id => { document.getElementById(id).style.display = multi ? 'none' : 'block'; });
+      }
+
+      function triggerMultiPreview() {
+          clearInterval(countdownTimer);
+          const pSku = document.getElementById('sku-search').value.trim(); const pQty = document.getElementById('box-qty').value.trim();
+          if (pSku || pQty) { if (!addBoxLine()) return; } // auto-add whatever is still typed
+          if (boxLines.length === 0) return triggerErrorModal("Add at least one SKU with a quantity before printing.", "sku-search");
+
+          pendingPayload = { multi: true, sheetName: activeSheetName, requestId: activeRequestId, items: boxLines.map(l => ({ sku: l.sku, barcode: l.barcode, category: l.category, qty: l.qty })) };
+          const total = boxLines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+          const now = new Date();
+          document.getElementById('mod-date').innerText = now.toLocaleDateString() + " " + now.toLocaleTimeString();
+          document.getElementById('mod-request').innerText = activeRequestId;
+          document.getElementById('mod-lines').innerHTML =
+              boxLines.map(l => `<p style="display:flex; justify-content:space-between; gap:8px;"><span style="font-weight:normal;">${escHtml(l.sku)}</span><span>× ${escHtml(l.qty)}</span></p>`).join('') +
+              `<p style="border-top:1px solid #ccc; padding-top:8px;">Total: <span>${total}</span> &nbsp;(${boxLines.length} SKU${boxLines.length > 1 ? 's' : ''}) → 1 box</p>`;
+          setPreviewMode(true);
+          document.getElementById('btn-confirm-print').disabled = false; document.getElementById('btn-confirm-print').innerText = "Print (Enter)";
+          document.getElementById('btn-reentry').disabled = false;
+          closeAllModals(); document.getElementById('success-modal').style.display = 'flex';
+          setTimeout(() => document.getElementById('btn-confirm-print').focus(), 100);
+
+          timeLeft = 10; document.getElementById('timer-display').innerHTML = `Auto-printing in <span id="timer-count">${timeLeft}</span> seconds...`;
+          countdownTimer = setInterval(() => {
+              timeLeft--; const tc = document.getElementById('timer-count'); if (tc) tc.innerText = timeLeft;
+              if (timeLeft <= 0) { clearInterval(countdownTimer); actionPrint(); }
+          }, 1000);
+      }
+
+      // Groups sheet rows that share one Box # into a single box (BLC/RTL)
+      function groupLogsByBox(logs) {
+          const map = new Map();
+          (logs || []).forEach(l => {
+              if (!l) return;
+              const key = String(l.requestId) + "|" + (l.boxNum !== "" && l.boxNum !== undefined ? l.boxNum : "r" + l.rowIndex);
+              if (!map.has(key)) map.set(key, Object.assign({}, l, { items: [], rowIndexes: [], _total: 0 }));
+              const g = map.get(key);
+              g.items.push({ sku: l.sku, qty: l.qty, barcode: l.barcode });
+              g.rowIndexes.push(l.rowIndex);
+              g._total += Number(l.qty) || 0;
+              const isVoidRow = l.receiveBy && String(l.receiveBy).toUpperCase().includes("VOID");
+              if (l.receiveBy && (!g.receiveBy || isVoidRow)) { g.receiveBy = l.receiveBy; g.dateReceived = l.dateReceived; }
+          });
+          return Array.from(map.values()).map(g => { g.sku = g.items.map(i => i.sku).join(", "); g.qty = g._total; return g; });
+      }
+
+      function skuCellHtml(log) {
+          if (!log.items) return log.sku;
+          return log.items.map(i => `<div>${escHtml(i.sku)} <b>× ${escHtml(i.qty)}</b></div>`).join('');
+      }
+
+      function findGroup(reqEnc, boxNum) {
+          const reqId = decodeURIComponent(reqEnc);
+          return currentDashboardLogs.find(l => String(l.requestId) === reqId && String(l.boxNum) === String(boxNum));
+      }
+
+      function initiateReprintGroup(reqEnc, boxNum) {
+          const g = findGroup(reqEnc, boxNum); if (!g) return;
+          pendingReprintData = { reqId: g.requestId, sku: g.sku, barcode: "BOX-" + g.boxNum, qty: g.qty, boxNum: g.boxNum, c1: "", c2: "", rowIndex: g.rowIndex, lines: g.items };
+          pendingReprintRow = g.rowIndex;
+          closeAllModals(); document.getElementById('reprint-auth-input').value = ""; document.getElementById('reprint-auth-modal').style.display = 'flex';
+          setTimeout(() => document.getElementById('reprint-auth-input').focus(), 100);
+      }
+
+      function initiateVoidGroup(reqEnc, boxNum) {
+          const g = findGroup(reqEnc, boxNum); if (!g) return;
+          pendingVoidRow = g.rowIndex; pendingVoidRows = g.rowIndexes.slice();
+          document.getElementById('void-box-target').innerText = g.boxNum; closeAllModals();
+          document.getElementById('void-auth-input').value = ""; document.getElementById('void-auth-modal').style.display = 'flex';
+          setTimeout(() => document.getElementById('void-auth-input').focus(), 100);
       }
 
       async function switchToReceiveLogin() {
@@ -1907,7 +2146,7 @@
           showToast("Loading Checklist...", "loading");
           try {
               const logs = await apiCall('getDashboardLogs', { sheetName: activeSheetName, requestId: reqId });
-              hideToast(); currentDashboardLogs = logs || []; renderReceiveChecklist();
+              hideToast(); currentDashboardLogs = isMultiMode() ? groupLogsByBox(logs) : (logs || []); renderReceiveChecklist();
               setTimeout(() => document.getElementById('receive-box-scan').focus(), 100);
           } catch(e) { hideToast(); showToast("Failed to load checklist", "error"); }
       }
@@ -1917,13 +2156,13 @@
           let filteredLogs = [...currentDashboardLogs].reverse().filter(log => log.requestId && log.requestId !== "undefined");
           if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #777;">No boxes found for this request.</td></tr>'; return; }
           filteredLogs.forEach(log => {
-              let counters = log.c2 && log.c2 !== "-" ? `${log.c1} / ${log.c2}` : log.c1;
+              let counters = log.c2 && log.c2 !== "-" ? `${log.c1} / ${log.c2}` : (log.c1 || "-");
               let receiveStatus = log.receiveBy ? `<span style="color: #4CAF50; font-weight:bold;">🟢 Rcvd by ${log.receiveBy}</span>` : `<span style="color: #F44336; font-weight:bold;">🔴 Pending</span>`;
               let rowStyle = log.receiveBy ? "background-color: #f1f8e9;" : ""; 
               tbody.innerHTML += `
                   <tr style="${rowStyle}" id="box-row-${log.boxNum}">
                       <td><b>Box #${log.boxNum}</b></td>
-                      <td>${log.sku}</td>
+                      <td>${skuCellHtml(log)}</td>
                       <td><b>${log.qty}</b></td>
                       <td>${counters}</td>
                       <td id="box-status-${log.boxNum}">${receiveStatus}</td>
