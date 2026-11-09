@@ -599,6 +599,8 @@
 
       function printLabelHTML(configs) {
           let html = "";
+          // shipment type badge next to the Box # (assembly login only: TCC / BLC / RTL)
+          const shipTag = isAssemblyLogin() ? ` <span style="font-size:18px; border:2px solid #000; border-radius:4px; padding:0 6px; vertical-align:middle;">${shipmentType}</span>` : "";
           configs.forEach(cfg => {
               const dateStr = cfg.date || (new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString());
 
@@ -619,7 +621,7 @@
                       <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid black; padding-bottom: 4px; width: 100%; gap: 10px;">
                           <div style="display: flex; flex-direction: column;">
                               <span style="font-size: 14px; color: #222;">${dateStr}</span>
-                              <span style="font-size: 26px; font-weight: bold; margin-top: 2px;">Box #${cfg.boxNum}</span>
+                              <span style="font-size: 26px; font-weight: bold; margin-top: 2px;">Box #${cfg.boxNum}${shipTag}</span>
                           </div>
                           <div style="flex:1; text-align:right; font-size:20px; font-weight:bold; line-height:1.25;">
                               <div>${n} item(s)</div>
@@ -644,7 +646,7 @@
                   <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid black; padding-bottom: 4px; width: 100%;">
                       <div style="display: flex; flex-direction: column;">
                           <span style="font-size: 14px; color: #222;">${dateStr}</span>
-                          <span style="font-size: 26px; font-weight: bold; margin-top: 4px;">Box #${cfg.boxNum}</span>
+                          <span style="font-size: 26px; font-weight: bold; margin-top: 4px;">Box #${cfg.boxNum}${shipTag}</span>
                       </div>
                       <div style="text-align: right;">
                           <div id="qr-${cfg.id}"></div>
