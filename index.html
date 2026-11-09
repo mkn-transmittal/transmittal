@@ -155,7 +155,7 @@
             <button onclick="addBoxLine()" id="add-line-btn" style="display:none; width:90%; margin: -8px 0 15px 5%; background-color:#4CAF50;">➕ Add Item to Box</button>
             <div id="box-lines-area" class="box-lines">
                 <div class="box-lines-head">📦 ITEMS IN THIS BOX (<span id="box-lines-count">0</span>) &nbsp;|&nbsp; TOTAL QTY: <span id="box-lines-total">0</span></div>
-                <div id="box-lines-list"></div>
+                <div id="box-lines-list" style="max-height:38vh; overflow-y:auto;"></div>
             </div>
 
             <div id="counter-fields">
@@ -524,7 +524,7 @@
       let boxLines = [];        // BLC/RTL: items in the box being built
       let activeAssemblyId = "";
       let pendingVoidRows = [];
-      const MAX_BOX_LINES = 10; // keeps the 150x100mm label readable
+      const MAX_BOX_LINES = 50; // 100x150mm label: 2 columns x 25 rows
       const SHIPMENT_SHEETS = { TCC: null, BLC: "BLCSHIPMENT", RTL: "RTLSHIPMENT" }; 
       let accessLevel = "";
       let activeRequestId = ""; 
@@ -604,33 +604,34 @@
           configs.forEach(cfg => {
               const dateStr = cfg.date || (new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString());
 
-              // ---- BLC / RTL: one box, many SKUs ----
+              // ---- BLC / RTL: one box, many SKUs (portrait 100mm x 150mm, up to 50 SKUs in 2 columns of 25) ----
               if (cfg.lines && cfg.lines.length) {
                   const n = cfg.lines.length;
-                  const fs = n <= 5 ? 20 : (n <= 8 ? 17 : 15);
+                  const cols = n > 25 ? 2 : 1;
+                  const rowsPerCol = cols === 2 ? 25 : n;
+                  const rowMm = cols === 2 ? 4.7 : Math.min(8, 117.5 / n);
+                  const fs = cols === 2 ? 9 : Math.max(9, Math.min(14, Math.floor(rowMm * 3.78 * 0.62)));
+                  const skuStyle = "flex:1; min-width:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere;";
                   const rows = cfg.lines.map(l => `
-                      <div style="display:flex; align-items:baseline; gap:10px; border-bottom:1px dotted #999; padding:2px 0; font-size:${fs}px;">
-                          <span style="white-space:nowrap; font-weight:bold;">${escHtml(l.barcode)}</span>
-                          <span style="color:#000;">|</span>
-                          <span style="flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(l.sku)}</span>
-                          <span style="color:#000;">|</span>
+                      <div style="display:flex; align-items:center; gap:4px; overflow:hidden; border-bottom:1px dotted #999; line-height:1.0; font-size:${fs}px;">
+                          <span style="${skuStyle}">${escHtml(l.sku)}</span>
                           <b style="white-space:nowrap;">${escHtml(l.qty)}PCS</b>
                       </div>`).join("");
                   html += `
                   <div class="thermal-label">
-                      <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid black; padding-bottom: 4px; width: 100%; gap: 10px;">
-                          <div style="display: flex; flex-direction: column;">
-                              <span style="font-size: 14px; color: #222;">${dateStr}</span>
-                              <span style="font-size: 26px; font-weight: bold; margin-top: 2px;">Box #${cfg.boxNum}${shipTag}</span>
+                      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid black; padding-bottom:3px; width:100%; gap:8px;">
+                          <div style="display:flex; flex-direction:column; min-width:0; flex:1; gap:2px;">
+                              <div style="font-size:11px; color:#222; display:flex; gap:8px; white-space:nowrap; overflow:hidden;">
+                                  <span>${dateStr}</span><b style="overflow:hidden; text-overflow:ellipsis;">Request ID: ${escHtml(cfg.reqId)}</b>
+                              </div>
+                              <div style="display:flex; align-items:baseline; gap:8px; white-space:nowrap;">
+                                  <span style="font-size:26px; font-weight:bold;">Box #${cfg.boxNum}${shipTag}</span>
+                                  <span style="font-size:14px; font-weight:bold; line-height:1.15; text-align:right; flex:1;">${n} item(s)<br>Total Qty: ${escHtml(cfg.qty)}</span>
+                              </div>
                           </div>
-                          <div style="flex:1; text-align:right; font-size:20px; font-weight:bold; line-height:1.25;">
-                              <div>${n} item(s)</div>
-                              <div>Total Qty: ${escHtml(cfg.qty)}</div>
-                          </div>
-                          <div style="text-align: right;"><div id="qr-${cfg.id}"></div></div>
+                          <div id="qr-${cfg.id}"></div>
                       </div>
-                      <div style="font-size: 15px; font-weight: bold; color: #333; text-align: center; width: 100%;">Request ID: ${escHtml(cfg.reqId)}</div>
-                      <div style="width:100%; flex:1; min-height:0; overflow:hidden;">${rows}</div>
+                      <div style="width:100%; display:grid; grid-auto-flow:column; grid-template-rows:repeat(${rowsPerCol}, ${rowMm}mm); grid-template-columns:repeat(${cols}, 1fr); column-gap:4mm; align-content:start; flex:1; min-height:0; overflow:hidden; margin-top:2mm;">${rows}</div>
                   </div>`;
                   return;
               }
@@ -668,16 +669,25 @@
           document.getElementById('print-container').innerHTML = html;
           document.getElementById('print-container').style.display = 'block';
 
+          // BLC/RTL labels print portrait 100mm x 150mm; TCC keeps the original 150mm x 100mm
+          const oldDyn = document.getElementById('dyn-print-style'); if (oldDyn) oldDyn.remove();
+          if (configs.some(c => c.lines && c.lines.length)) {
+              const st = document.createElement('style'); st.id = 'dyn-print-style';
+              st.textContent = '@media print { html, body { width: 100mm !important; } #print-container { width: 100mm !important; } .thermal-label { width: 100mm !important; height: 150mm !important; padding: 4mm !important; } @page { size: 100mm 150mm; margin: 0mm; } }';
+              document.head.appendChild(st);
+          }
+
           configs.forEach(cfg => {
               const multi = !!(cfg.lines && cfg.lines.length);
               if (!multi) { try { JsBarcode(`#bc-${cfg.id}`, cfg.barcode, { format: "CODE128", width: 2.5, height: 70, displayValue: true, fontSize: 18, margin: 0 }); } catch(e){} }
-              try { new QRCode(document.getElementById(`qr-${cfg.id}`), { text: cfg.reqId + "|BOX-" + cfg.boxNum, width: 64, height: 64, colorDark: "#000", colorLight: "#fff", correctLevel: QRCode.CorrectLevel.M }); } catch(e){}
+              try { new QRCode(document.getElementById(`qr-${cfg.id}`), { text: cfg.reqId + "|BOX-" + cfg.boxNum, width: multi ? 60 : 64, height: multi ? 60 : 64, colorDark: "#000", colorLight: "#fff", correctLevel: QRCode.CorrectLevel.M }); } catch(e){}
           });
 
           setTimeout(() => {
               window.print();
               document.getElementById('print-container').style.display = 'none';
               document.getElementById('print-container').innerHTML = '';
+              const dyn = document.getElementById('dyn-print-style'); if (dyn) dyn.remove();
           }, 300);
       }
 
