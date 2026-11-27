@@ -822,14 +822,29 @@
       });
 
       async function apiCall(action, payload = {}) {
-          try {
-              const response = await fetch(SCRIPT_URL, {
-                  method: 'POST', body: JSON.stringify({ action: action, ...payload })
-              });
-              const result = await response.json();
-              if(!result.success) throw new Error(result.error);
-              return result.data;
-          } catch (err) { console.error(err); throw err; }
+          // Read actions (get*) get a 60s timeout and one automatic retry on timeout/network/HTML-error replies.
+          // Save/void/receive actions are never retried automatically (could create duplicates).
+          const isRead = action.indexOf('get') === 0;
+          const attempts = isRead ? 2 : 1;
+          let lastErr;
+          for (let attempt = 1; attempt <= attempts; attempt++) {
+              const ctrl = isRead ? new AbortController() : null;
+              const timer = isRead ? setTimeout(() => ctrl.abort(), 60000) : null;
+              try {
+                  const response = await fetch(SCRIPT_URL, {
+                      method: 'POST', body: JSON.stringify({ action: action, ...payload }), signal: ctrl ? ctrl.signal : undefined
+                  });
+                  const result = await response.json();
+                  if (!result.success) throw new Error(result.error);
+                  return result.data;
+              } catch (err) {
+                  console.error(err); lastErr = err;
+                  const retryable = err && (err.name === 'AbortError' || err instanceof TypeError || err instanceof SyntaxError);
+                  if (!(isRead && retryable && attempt < attempts)) throw err;
+                  await new Promise(r => setTimeout(r, 1500));
+              } finally { if (timer) clearTimeout(timer); }
+          }
+          throw lastErr;
       }
 
       function showToast(message, type = 'loading') {
@@ -987,13 +1002,8 @@
             const scannerList = document.getElementById('scanner-req-list');
             const receiveList = document.getElementById('receive-req-list');
             const dashboardList = document.getElementById('dashboard-req-list');
-            scannerList.innerHTML = ''; receiveList.innerHTML = ''; dashboardList.innerHTML = '';
-            requests.forEach(r => { 
-                if (r && r !== "undefined" && r.trim() !== "") {
-                    const opt = `<option value="${r}">`;
-                    scannerList.innerHTML += opt; receiveList.innerHTML += opt; dashboardList.innerHTML += opt;
-                }
-            });
+            const optsHtml = (Array.isArray(requests) ? requests : []).filter(r => r && r !== "undefined" && String(r).trim() !== "").map(r => `<option value="${escHtml(r)}">`).join('');
+            scannerList.innerHTML = optsHtml; receiveList.innerHTML = optsHtml; dashboardList.innerHTML = optsHtml;
         } catch(e) { showToast("Failed to load Request IDs", "error"); }
       }
 
@@ -1833,21 +1843,36 @@
       async function switchToDashboard() {
           const sidebar = document.getElementById("sidebar"); if(sidebar.classList.contains("open")) toggleSidebar();
           hideAllSections(); document.getElementById('dashboard-section').style.display = 'flex';
+          // default to the Request ID currently locked on the scanner (much smaller than loading ALL); clear the box to see everything
+          const dreq = document.getElementById('dashboard-request-input');
+          if (!dreq.value.trim() && activeRequestId) dreq.value = activeRequestId;
+          loadDashboardData();   // don't wait for the Request-ID list
           try {
               const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
-              const datalist = document.getElementById('dashboard-req-list'); datalist.innerHTML = '';
-              requests.forEach(r => { if (r && r !== "undefined" && r.trim() !== "") datalist.innerHTML += `<option value="${r}">`; });
-              loadDashboardData();
-          } catch(e) { showToast("Failed to load dropdown", "error"); }
+              const datalist = document.getElementById('dashboard-req-list');
+              datalist.innerHTML = (Array.isArray(requests) ? requests : []).filter(r => r && r !== "undefined" && String(r).trim() !== "").map(r => `<option value="${escHtml(r)}">`).join('');
+          } catch(e) { console.error(e); }
       }
 
+      let dashLoadToken = 0;
+      let dashShown = 150; // rows drawn at once (keeps the page fast with thousands of boxes)
       async function loadDashboardData() {
           const reqInput = document.getElementById('dashboard-request-input').value.trim(); const reqId = reqInput === "" ? "ALL" : reqInput;
+          const myToken = ++dashLoadToken;   // ignore slower, older responses
+          dashShown = 150;
+          document.getElementById('dashboard-table-body').innerHTML = '<tr><td colspan="11" style="text-align: center; color: #777;">Loading logs... ' + (reqId === "ALL" ? '(all requests can take a while)' : '') + '</td></tr>';
           showToast("Loading Logs...", "loading");
           try {
               const logs = await apiCall('getDashboardLogs', { sheetName: activeSheetName, requestId: reqId });
-              hideToast(); currentDashboardLogs = isAssemblyLogin() ? groupLogsByBox(logs) : (logs || []); applyFilters(); 
-          } catch(e) { hideToast(); showToast("Failed to load logs", "error"); }
+              if (myToken !== dashLoadToken) return;
+              hideToast();
+              const list = Array.isArray(logs) ? logs : [];
+              currentDashboardLogs = isAssemblyLogin() ? groupLogsByBox(list) : list; applyFilters();
+          } catch(e) {
+              if (myToken !== dashLoadToken) return;
+              hideToast(); showToast("Failed to load logs", "error");
+              document.getElementById('dashboard-table-body').innerHTML = '<tr><td colspan="11" style="text-align: center; color: #d32f2f;">Could not load the logs (' + escHtml(e && e.message ? e.message : 'timeout') + '). <button onclick="loadDashboardData()" style="width:auto; padding:6px 14px; margin-left:8px;">🔄 Retry</button></td></tr>';
+          }
       }
 
       function applyFilters() {
@@ -1867,8 +1892,8 @@
               filteredLogs = filteredLogs.filter(log => {
                   let match = true;
                   if (dateFilter) {
-                      const logDateStr = log.date.split(' ')[0]; const [logM, logD, logY] = logDateStr.split('/');
-                      if (`${logY}-${logM.padStart(2,'0')}-${logD.padStart(2,'0')}` !== dateFilter) match = false;
+                      const parts = String(log.date || '').split(' ')[0].split('/');
+                      if (parts.length < 3 || `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}` !== dateFilter) match = false;
                   }
                   if (searchFilter && match && !`${log.sku} ${log.c1}${log.c2} ${log.requestId} box#${log.boxNum} ${log.lastReprintBy}${log.receiveBy}`.toLowerCase().includes(searchFilter)) match = false;
                   return match;
@@ -1876,7 +1901,8 @@
           }
 
           if (filteredLogs.length === 0) { tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #777;">No matching logs found.</td></tr>'; return; }
-          filteredLogs.forEach(log => {
+          const rowsHtml = [];
+          filteredLogs.slice(0, dashShown).forEach(log => {
               let counters = log.c2 && log.c2 !== "-" ? `${log.c1} /${log.c2}` : (log.c1 || "-");
               let reprintBadge = log.lastReprintBy && log.lastReprintBy !== "-" ? `<span style="font-size: 11px; background: #eee; padding: 2px 6px; border-radius: 4px;">👤 ${log.lastReprintBy}</span>` : `<span style="color:#aaa;">-</span>`;
               let isVoid = log.receiveBy && log.receiveBy.toString().toUpperCase().includes("VOID");
@@ -1890,7 +1916,7 @@
               
               let checkboxHtml = !isVoid ? `<input type="checkbox" class="dash-cb" value="${log.boxNum}" style="transform: scale(1.5); cursor: pointer;">` : ``;
 
-              tbody.innerHTML += `
+              rowsHtml.push(`
                   <tr style="${rowStyle}">
                       <td style="text-align: center;">${checkboxHtml}</td>
                       <td><span style="background: #eef2f3; padding: 4px 8px; border-radius: 4px;">${log.requestId}</span></td>
@@ -1904,8 +1930,12 @@
                       <td>${receiveStatus}</td>
                       <td>${actionButtons}</td>
                   </tr>
-              `;
+              `);
           });
+          if (filteredLogs.length > dashShown) {
+              rowsHtml.push(`<tr><td colspan="11" style="text-align:center; padding:14px;">Showing ${dashShown} of ${filteredLogs.length} boxes. <button onclick="dashShown += 150; applyFilters();" style="width:auto; padding:6px 14px; margin-left:8px;">Show 150 more</button></td></tr>`);
+          }
+          tbody.innerHTML = rowsHtml.join('');
       }
 
       function bulkPrintDashboard() {
@@ -2240,8 +2270,8 @@
           hideAllSections(); document.getElementById('receive-dashboard-section').style.display = 'flex'; document.getElementById('active-ops-label').innerText = activeOpsName;
           try {
               const requests = await apiCall('getExistingRequestIds', { sheetName: activeSheetName });
-              const datalist = document.getElementById('receive-req-list'); datalist.innerHTML = '';
-              requests.forEach(r => { if (r && r !== "undefined" && r.trim() !== "") datalist.innerHTML += `<option value="${r}">`; });
+              const datalist = document.getElementById('receive-req-list');
+              datalist.innerHTML = (Array.isArray(requests) ? requests : []).filter(r => r && r !== "undefined" && String(r).trim() !== "").map(r => `<option value="${escHtml(r)}">`).join('');
           } catch(e) { showToast("Failed to load Request IDs", "error"); }
       }
 
